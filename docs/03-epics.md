@@ -28,7 +28,7 @@ SQLite and PostgreSQL, proven equal to post-pass-only against upstream fixtures.
 | E1-S1 | Monorepo scaffold and CI skeleton | FR-1, FR-20 | — | done |
 | E1-S2 | App config, settings, system checks | FR-1, FR-2 | E1-S1 | done |
 | E1-S3 | Upstream fixture loader and test models | FR-13 | E1-S1 | done |
-| E1-S4 | QuerySet field extraction and inspectability | FR-7 | E1-S2 | todo |
+| E1-S4 | QuerySet field extraction and inspectability | FR-7 | E1-S2 | done |
 | E1-S5 | Pre-execution checks | FR-7, FR-11 | E1-S4 | todo |
 | E1-S6 | Row-filter compiler (vendor rules) | FR-8 | E1-S3, E1-S5 | todo |
 | E1-S7 | Projection, limit, `Preparation` | FR-9, FR-10 | E1-S6 | todo |

@@ -2,6 +2,7 @@ import pytest
 from django.core.checks import run_checks
 from django.core.exceptions import ImproperlyConfigured
 from django.test import override_settings
+
 from django_tolap.conf import settings
 
 

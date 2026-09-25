@@ -18,4 +18,4 @@ test:
 	uv run pytest -q
 
 gap-report:
-	PYTHONPATH=. uv run python -m tests.gap.report > docs/gap-report.md
+	PYTHONPATH=. uv run python -m tests.gap.report > docs/gap-report.md.tmp && mv docs/gap-report.md.tmp docs/gap-report.md

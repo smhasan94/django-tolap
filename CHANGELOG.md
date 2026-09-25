@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.1 — unreleased
+## 0.1.1 — 2026-09-25 (django-tolap only)
 
 ### django-tolap
 
@@ -14,7 +14,8 @@
 
 ### sqlalchemy-tolap
 
-- MySQL 8.4 (`mysql+mysqldb`) is tested in CI with the same differential proof.
+- No release; 0.1.0 is unchanged. MySQL 8.4 (`mysql+mysqldb`) is now tested in CI with the
+  same differential proof.
 
 ## 0.1.0 — 2026-09-25
 

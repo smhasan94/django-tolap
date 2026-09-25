@@ -129,3 +129,32 @@ field drops every row. A typo in a hidden-field name must be visible, not silent
 
 **Rationale.** The agreed headline is "policies managed in Django admin and enforced on your
 QuerySets"; without the store the quickstart has no admin.
+
+## 2026-09-25 — NULL handling for pushed negative filters (E1-S6 study)
+
+**Question.** Upstream requires a pushed-down negative filter to keep rows whose column is
+`NULL` (`(col <> 'x' OR col IS NULL)`). Does Django already do this, so we must not add a
+second `IS NULL` arm?
+
+**Finding.** Django compiles `~Q(f=x)`, `exclude(f=x)`, `~Q(f__in=[...])`, `~Q(f__gt=x)`,
+`~Q(f__range=...)` on a nullable field to `NOT (f = x AND f IS NOT NULL)`, which keeps null
+rows. On a `NOT NULL` column it emits plain `NOT (f = x)`. Row sets on SQLite match
+upstream `apply_row_filters` for `notEquals` and `notIn` with null rows present. A plain
+`f__in=[..., None]` drops the `None` member, so `in` with a null member gets an explicit
+`| Q(f__isnull=True)`, and `equals null` compiles to `f__isnull=True`.
+
+**Decision.** Do not add an `IS NULL` arm to negated lookups; rely on Django's negation.
+Add the arm only for `in` with a null member. Pinned by `tests/test_null_handling.py` on
+every vendor in CI.
+
+**Also decided while writing the compiler (stricter than upstream where noted).**
+- String equality (`equals`, `notEquals`, `in`, `notIn`) is pushed only where `=` is
+  case-sensitive: PostgreSQL and SQLite. Upstream pushes it on MySQL; we decline there.
+- String ordering (`greaterThan`…, `between`) is pushed only on SQLite (byte-wise `BINARY`
+  collation matches Python's code-point ordering). PostgreSQL's locale collation can order
+  `'a' < 'B'`, which Python does not, so it is declined there. Upstream pushes it.
+- A field with an explicit `db_collation` disables every string operator.
+- Only `str`, `int`, `float`, `bool` field kinds are pushed for value operators; a policy
+  value whose Python type the driver would not return for that field (e.g. `"10"` on an
+  integer column, a string on a date column) is declined, because the post pass drops such
+  rows as non-comparable and SQL might not.

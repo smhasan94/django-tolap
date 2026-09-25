@@ -1,0 +1,202 @@
+"""Compile TOLAP row filters into ``Q`` objects, or decline.
+
+The contract (PRD FR-8, FR-13): a pushed ``Q`` selects **exactly** the rows upstream's
+post-execution ``apply_row_filters`` would keep, on the vendor the query will run on. When
+that cannot be guaranteed the filter is declined and reported in
+``Preparation.unpushable_filters``; the post pass enforces it. Declining is always safe;
+approximating never is.
+
+Semantics mirrored from ``tolap_core.enforcement._row_passes_filter`` (1.0.0):
+
+* ``equals``/``notEquals`` use Python equality: ``None == None`` holds, booleans never equal
+  numbers. So ``equals null`` is ``IS NULL`` and ``notEquals x`` keeps null rows.
+* ``in``/``notIn`` are ``any(equals)``; a ``null`` member matches null rows.
+* Ordering operators drop a row whose value is null, boolean, or not comparable.
+* ``like`` is case-sensitive with ``\\`` escapes; ``notLike`` keeps null rows.
+* ``contains``, ``startsWith``, ``matches`` have no faithful SQL form and are never pushed.
+
+Django's own negation already keeps null rows: ``~Q(f=x)`` on a nullable field compiles to
+``NOT (f = x AND f IS NOT NULL)`` (verified in ``tests/test_null_handling.py``), so no extra
+``IS NULL`` arm is added for negatives.
+
+Vendor rules: string equality is pushed only where ``=`` is case-sensitive; string ordering
+only where the collation orders by code point; ``like`` only where ``LIKE`` is
+case-sensitive. A field with an explicit ``db_collation`` disables every string operator.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from typing import Any, Literal
+
+from django.db import models
+from django.db.models import Model, Q
+from tolap_core import FilterOperator, RowFilter
+
+from django_tolap.objects import object_name
+
+_LOG = logging.getLogger(__name__)
+
+Kind = Literal["str", "int", "float", "bool", "other"]
+
+NEVER_PUSHED = frozenset(
+    {FilterOperator.contains, FilterOperator.starts_with, FilterOperator.matches}
+)
+MAX_LIKE_PATTERN_LENGTH = 1024  # upstream's ReDoS guard: longer patterns drop every row
+
+
+@dataclass(frozen=True)
+class VendorRules:
+    string_equality: bool
+    string_order: bool
+    like: bool
+
+
+VENDORS: dict[str, VendorRules] = {
+    # ``=`` and ``LIKE`` case-sensitive; ordering follows the database collation.
+    "postgresql": VendorRules(string_equality=True, string_order=False, like=True),
+    # BINARY collation: ``=`` and ordering are byte-wise; ``LIKE`` is case-insensitive.
+    "sqlite": VendorRules(string_equality=True, string_order=True, like=False),
+    # Default collations are case- and accent-insensitive for every string operator.
+    "mysql": VendorRules(string_equality=False, string_order=False, like=False),
+    "oracle": VendorRules(string_equality=False, string_order=False, like=False),
+}
+_warned_vendors: set[str] = set()
+
+
+def vendor_rules(vendor: str) -> VendorRules | None:
+    rules = VENDORS.get(vendor)
+    if rules is None and vendor not in _warned_vendors:
+        _warned_vendors.add(vendor)
+        _LOG.warning("TOLAP pushdown disabled: unknown database vendor %r", vendor)
+    return rules
+
+
+def field_kind(field: models.Field[Any, Any]) -> Kind:
+    if isinstance(field, models.BooleanField):
+        return "bool"
+    if isinstance(field, models.CharField | models.TextField):
+        return "str"
+    if isinstance(field, models.IntegerField):
+        return "int"
+    if isinstance(field, models.FloatField):
+        return "float"
+    return "other"
+
+
+def value_fits(kind: Kind, value: Any) -> bool:
+    """Whether the driver would return ``value``'s Python type for this field kind."""
+    if isinstance(value, bool):
+        return kind == "bool"
+    if kind == "str":
+        return isinstance(value, str)
+    if kind == "int":
+        return isinstance(value, int)
+    if kind == "float":
+        return isinstance(value, int | float)
+    return False
+
+
+def resolve_field(rf: RowFilter, model: type[Model]) -> models.Field[Any, Any] | None:
+    """The concrete, non-relational field ``rf.field`` names on ``model``, if any.
+
+    A name qualified with another object belongs to that object; a relation field's value
+    in ``.values()`` rows is an id under a different key, so it is left to the post pass.
+    """
+    qualifier, _, leaf = rf.field.rpartition(".")
+    if qualifier and qualifier.lower() != object_name(model).lower():
+        return None
+    for field in model._meta.concrete_fields:
+        if field.name.lower() == leaf.lower() and not field.is_relation:
+            return field
+    return None
+
+
+def _nothing() -> Q:
+    return Q(pk__in=[])
+
+
+def compile_filter(rf: RowFilter, model: type[Model], vendor: str) -> Q | None:
+    """A ``Q`` selecting exactly the rows the post pass keeps, or ``None`` to decline."""
+    rules = vendor_rules(vendor)
+    if rules is None or rf.operator in NEVER_PUSHED:
+        return None
+    field = resolve_field(rf, model)
+    if field is None:
+        return None
+    name = field.name
+    op = rf.operator
+
+    if op is FilterOperator.is_null:
+        return Q(**{f"{name}__isnull": True})
+    if op is FilterOperator.is_not_null:
+        return Q(**{f"{name}__isnull": False})
+
+    kind = field_kind(field)
+    if kind == "other":
+        return None
+    if kind == "str" and getattr(field, "db_collation", None):
+        return None
+
+    if op in (FilterOperator.equals, FilterOperator.not_equals):
+        negated = op is FilterOperator.not_equals
+        if rf.value is None:
+            return Q(**{f"{name}__isnull": not negated})
+        if not value_fits(kind, rf.value) or (kind == "str" and not rules.string_equality):
+            return None
+        q = Q(**{name: rf.value})
+        return ~q if negated else q
+
+    if op in (FilterOperator.in_, FilterOperator.not_in):
+        values = list(rf.values or [])
+        has_null = any(v is None for v in values)
+        members = [v for v in values if v is not None]
+        if any(not value_fits(kind, v) for v in members):
+            return None
+        if kind == "str" and members and not rules.string_equality:
+            return None
+        if op is FilterOperator.in_:
+            if not values:
+                return _nothing()
+            q = Q(**{f"{name}__in": members}) if members else _nothing()
+            return q | Q(**{f"{name}__isnull": True}) if has_null else q
+        if not values:
+            return Q()
+        q = ~Q(**{f"{name}__in": members}) if members else Q()
+        return q & Q(**{f"{name}__isnull": False}) if has_null else q
+
+    if op in _ORDERING:
+        if rf.value is None or not value_fits(kind, rf.value) or kind == "bool":
+            return _nothing() if rf.value is None else None
+        if kind == "str" and not rules.string_order:
+            return None
+        return Q(**{f"{name}__{_ORDERING[op]}": rf.value})
+
+    if op is FilterOperator.between:
+        bounds = list(rf.values or [])
+        if len(bounds) < 2 or bounds[0] is None or bounds[1] is None:
+            return _nothing()
+        if kind == "bool" or not all(value_fits(kind, b) for b in bounds[:2]):
+            return None
+        if kind == "str" and not rules.string_order:
+            return None
+        return Q(**{f"{name}__range": (bounds[0], bounds[1])})
+
+    if op in (FilterOperator.like, FilterOperator.not_like):
+        if kind != "str" or not rules.like or not isinstance(rf.value, str):
+            return None
+        if len(rf.value) > MAX_LIKE_PATTERN_LENGTH:
+            return None
+        q = Q(**{f"{name}__tolap_like": rf.value})
+        return ~q if op is FilterOperator.not_like else q
+
+    return None  # pragma: no cover - every enum member is handled above
+
+
+_ORDERING = {
+    FilterOperator.greater_than: "gt",
+    FilterOperator.greater_than_or_equal: "gte",
+    FilterOperator.less_than: "lt",
+    FilterOperator.less_than_or_equal: "lte",
+}

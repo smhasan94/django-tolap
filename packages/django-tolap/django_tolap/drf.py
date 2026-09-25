@@ -6,7 +6,12 @@ upstream ``validate_write`` (the target row is fetched under the policy first, s
 update or delete of a row the user cannot see is refused as ``target row not permitted``).
 
 ``TolapSerializerMixin`` drops fields the policy hides, so generated schemas and any
-serializer-based rendering agree with what ``enforce`` returns.
+serializer-based rendering agree with what ``enforce`` returns. With no caller identity
+(an anonymous request, a public schema) there is no policy and the serializer is unchanged.
+
+When ``drf-spectacular`` is installed the viewset mixin sets
+:class:`~django_tolap.spectacular.TolapAutoSchema` as its ``schema``, so a schema served to
+an authenticated caller is that caller's view of the API.
 """
 
 from __future__ import annotations
@@ -27,13 +32,15 @@ from django_tolap.exceptions import TolapDenied
 from django_tolap.objects import object_name
 from django_tolap.precheck import FieldRules, field_visible
 from django_tolap.tool import IDENTITY_MISSING, ToolContext
+from django_tolap.writes import HTTP_WRITE_OPERATIONS
 
-WRITE_OPERATIONS = {
-    "POST": WriteOperation.insert,
-    "PUT": WriteOperation.update,
-    "PATCH": WriteOperation.update,
-    "DELETE": WriteOperation.delete,
-}
+_AutoSchema: type[Any] | None
+try:
+    from django_tolap.spectacular import TolapAutoSchema as _AutoSchema
+except ImportError:  # drf-spectacular is optional
+    _AutoSchema = None
+
+WRITE_OPERATIONS = HTTP_WRITE_OPERATIONS
 
 
 def _tenant_resolver() -> Callable[[Request], str]:
@@ -49,6 +56,8 @@ class TolapViewSetMixin:
 
     tolap_source: str = ""
     _tolap: ToolContext | None = None
+    if _AutoSchema is not None:
+        schema = _AutoSchema()
 
     # -- identity and context --
 
@@ -74,6 +83,19 @@ class TolapViewSetMixin:
     @property
     def tolap_policy(self) -> EffectivePolicy:
         return self.get_tolap_context().policy
+
+    def tolap_policy_or_none(self) -> EffectivePolicy | None:
+        """The caller's policy, or ``None`` when no identity is established.
+
+        Anonymous requests and public schema generation have no caller to resolve a policy
+        for; they are not refused here (``initial`` and ``enforce`` do that on real
+        requests), they get no policy.
+        """
+        request: Request = self.request  # type: ignore[attr-defined]
+        user_id, tenant_id = self.get_tolap_identity(request)
+        if not user_id or not tenant_id:
+            return None
+        return self.tolap_policy
 
     # -- DRF hooks --
 
@@ -143,7 +165,8 @@ class TolapSerializerMixin:
     def get_fields(self) -> dict[str, Any]:
         fields: dict[str, Any] = super().get_fields()  # type: ignore[misc]
         view = self.context.get("view")  # type: ignore[attr-defined]
-        policy = getattr(view, "tolap_policy", None) if view is not None else None
+        resolve = getattr(view, "tolap_policy_or_none", None)
+        policy = resolve() if callable(resolve) else None
         if policy is None:
             return fields
         model = view.get_queryset().model

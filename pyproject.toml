@@ -32,6 +32,7 @@ dev = [
   "tolap-mcp>=1.0,<2",
   "mysqlclient>=2.2",
   "pytest-cov>=6",
+  "drf-spectacular>=0.30",
 ]
 
 [tool.ruff]

@@ -171,6 +171,7 @@ updated; time-to-first-value walkthrough measured under five minutes by the scri
 | E3-S2 | Interop test with upstream `tolap-mcp` wrapper | FR-15 | E3-S1 | done |
 | E3-S3 | DRF viewset and serializer mixins | FR-16 | E3-S1 | done |
 | E3-S4 | DRF write-method refusal and schema hiding | FR-16 | E3-S3 | done |
+| E3-S5 | drf-spectacular schema per caller | FR-16 | E3-S4 | done |
 
 **E3-S1.** AC: `ToolContext` with `.policy`, `.context`, `.enforce(qs)`, `.deny(reason)`;
 identity from kwargs or `TOLAP["IDENTITY"]` callable; missing identity denies;
@@ -181,6 +182,11 @@ identity from kwargs or `TOLAP["IDENTITY"]` callable; missing identity denies;
 `TolapSerializerMixin` drops hidden fields; tenant from `TOLAP["TENANT_RESOLVER"]`.
 **E3-S4.** AC: `readOnly` policy refuses POST/PUT/PATCH/DELETE with 403 and upstream
 reason; OpenAPI schema (drf-spectacular if installed, else DRF's) omits hidden fields.
+**E3-S5.** AC: `TolapAutoSchema` set automatically when drf-spectacular is importable; public
+schema generation works with no caller (no policy, full serializer); a caller's schema omits
+hidden fields, annotates masked fields (`x-tolap-mask`), omits refused write methods, omits
+every operation on an unqueryable object; every TOLAP operation carries `x-tolap-source`.
+Post-v0.1 backlog item, 2026-09-25.
 
 ---
 

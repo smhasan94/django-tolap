@@ -244,6 +244,16 @@ field, or when the target row is not visible under the row filters. The tenant i
 `"default"` unless `TOLAP["TENANT_RESOLVER"]` names a callable taking the request.
 Install with `pip install "django-tolap[drf]"`.
 
+With [drf-spectacular](https://drf-spectacular.readthedocs.io/) installed, the viewset mixin
+generates its OpenAPI schema with `django_tolap.spectacular.TolapAutoSchema`. The public
+schema (the default) documents the whole serializer and every method; each operation on a
+TOLAP view carries `x-tolap-source` and a note in its description. Serve the schema per
+caller (`SPECTACULAR_SETTINGS = {"SERVE_PUBLIC": False}`) and an authenticated caller gets
+their own view of the API: hidden fields are absent, masked fields carry `x-tolap-mask`
+(`hash`, `partial` or `full`), write methods the policy refuses are absent, and an object the
+policy cannot query has no operations at all. To combine with your own schema customisations,
+subclass `TolapAutoSchema` and set it as `schema` on the viewset.
+
 ## SQLAlchemy
 
 The same adapter for SQLAlchemy 2.x `Select` statements, without Django:

@@ -4,6 +4,14 @@
 
 ### django-tolap
 
+- drf-spectacular: `TolapViewSetMixin` generates its schema with
+  `django_tolap.spectacular.TolapAutoSchema` when drf-spectacular is installed. Operations
+  on a TOLAP view carry `x-tolap-source` and a description note. A schema served per caller
+  (`SERVE_PUBLIC = False`) omits hidden fields, annotates masked fields with `x-tolap-mask`,
+  omits write methods the caller's policy refuses, and omits every operation on an object the
+  policy cannot query. Fixes public schema generation, which `TolapSerializerMixin` broke with
+  `identity not established`: no caller now means no policy and an unchanged serializer
+  (`TolapViewSetMixin.tolap_policy_or_none()`).
 - `values("related__field")` projections are accepted. The joined column is pre-checked
   against its own object's hidden and allowed fields, presented to the post pass as
   `object.field` so that object's masking rules apply, and returned under the caller's key.

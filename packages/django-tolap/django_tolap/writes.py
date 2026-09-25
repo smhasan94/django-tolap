@@ -25,6 +25,13 @@ from django_tolap.objects import object_name
 
 TARGET_NOT_PERMITTED = "target row not permitted"
 
+HTTP_WRITE_OPERATIONS: dict[str, WriteOperation] = {
+    "POST": WriteOperation.insert,
+    "PUT": WriteOperation.update,
+    "PATCH": WriteOperation.update,
+    "DELETE": WriteOperation.delete,
+}
+
 
 def _concrete_names(model: type[Model]) -> list[str]:
     return [f.attname for f in model._meta.concrete_fields]

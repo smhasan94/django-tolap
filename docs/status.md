@@ -9,6 +9,9 @@ https://github.com/awslabs/tolap/issues/31, no maintainer reply yet. CI green on
 coverage floor; all legs sit at 96%.
 
 **Unreleased on `main` (django-tolap, see `CHANGELOG.md` "Unreleased").**
+- drf-spectacular: `TolapAutoSchema`, set by the viewset mixin when installed. Per-caller
+  schemas omit hidden fields and refused writes, annotate masks; public schema generation no
+  longer crashes on the serializer mixin.
 - `enforce_sql` / `enforce_raw`: raw SQL paths with our vendor rules over upstream's rewriter.
 - `manage.py tolap_resolve`: effective policy, assignments, or a signed context from the shell.
 - `enforce_save` / `enforce_delete` / `enforce_update` / `enforce_queryset_delete` and the
@@ -36,7 +39,6 @@ Desktop, `docker run -d --name tolap-mysql -e MYSQL_ROOT_PASSWORD=root -e MYSQL_
 Regenerate the gap report with `DATABASE_URL=<postgres> make gap-report`.
 
 **Backlog (in rough priority order).**
-- drf-spectacular schema integration beyond serializer-field hiding (~1 day).
 - SQLAlchemy: projecting a non-root entity or column (`select(Patient.id, Encounter.status)`)
   is still refused; Django's `values("related__x")` landed by presenting joined keys as
   `object.field` to the post pass. SQLAlchemy row keys collide (`status` twice) without

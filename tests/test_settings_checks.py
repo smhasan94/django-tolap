@@ -43,4 +43,4 @@ def test_callable_object_name_ok() -> None:
 
 def test_unknown_setting_attribute() -> None:
     with pytest.raises(AttributeError):
-        settings.NOPE
+        _ = settings.NOPE

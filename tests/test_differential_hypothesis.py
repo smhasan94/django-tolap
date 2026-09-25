@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.db.models import Q
+from django.db.models import Count, Exists, OuterRef, Q
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from hypothesis.extra.django import TestCase
@@ -12,7 +12,7 @@ from hypothesis.extra.django import TestCase
 from django_tolap.pushdown import prepare_queryset
 from tests.harness.differential import assert_differential, post_only
 from tests.harness.strategies import patient_rows, policies
-from tests.testapp.models import Patient
+from tests.testapp.models import Encounter, Patient
 
 QUERYSETS = [
     lambda: Patient.objects.all(),
@@ -23,6 +23,12 @@ QUERYSETS = [
     lambda: Patient.objects.order_by("id")[1:4],
     lambda: Patient.objects.values("id", "full_name").order_by("full_name"),
     lambda: Patient.objects.only("region", "score").order_by("id"),
+    lambda: Patient.objects.filter(encounters__status="active").distinct().order_by("id"),
+    lambda: Patient.objects.annotate(n=Count("encounters")).filter(n__gte=0).order_by("id"),
+    lambda: Patient.objects.filter(
+        Exists(Encounter.objects.filter(patient=OuterRef("pk"), region="us-east"))
+    ),
+    lambda: Patient.objects.values("id", "region").annotate(n=Count("encounters")),
 ]
 
 
@@ -38,6 +44,18 @@ class DifferentialProperty(TestCase):
     ) -> None:
         Patient.objects.all().delete()
         Patient.objects.bulk_create([Patient(**r) for r in rows])
+        Encounter.objects.bulk_create(
+            [
+                Encounter(
+                    patient_id=r["id"],
+                    occurred_at="2026-01-01T00:00:00Z",
+                    region=r["region"] or "none",
+                    status=r["status"],
+                )
+                for r in rows
+                if r["id"] % 2
+            ]
+        )
         qs = QUERYSETS[which]()
         prep = prepare_queryset(qs, policy)
         if not prep.allowed:

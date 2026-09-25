@@ -1,0 +1,4 @@
+Copied verbatim from https://github.com/awslabs/tolap (Apache-2.0), commit e5c92107a33fd12ed9f85a51f5296331a457c4d3,
+fetched 2026-09-25. Paths mirror upstream's fixtures/ directory; schema/ holds
+schema/v1.0/*.schema.json and sdk/python/tests/integration/schema.sql. Never edit these
+files; refresh by re-running the fetch with a new commit and updating this line.

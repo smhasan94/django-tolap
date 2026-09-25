@@ -20,7 +20,7 @@ def check_tolap_settings(app_configs: Any, **kwargs: Any) -> list[CheckMessage]:
     messages: list[CheckMessage] = []
 
     try:
-        settings.SIGNING_KEY
+        _ = settings.SIGNING_KEY
     except ImproperlyConfigured as exc:
         messages.append(Error(str(exc), hint="Set TOLAP = {'SIGNING_KEY': ...}", id=E001))
 

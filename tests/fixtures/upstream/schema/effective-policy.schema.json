@@ -1,0 +1,398 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tolap.dev/schema/v1.0/effective-policy.schema.json",
+  "title": "TOLAP Effective Policy",
+  "description": "The merged result of all applicable TOLAP policies for a specific user and data source. This is the resolved policy that gets signed, serialized, and transported to the tool execution environment for enforcement.",
+  "type": "object",
+  "required": [
+    "version",
+    "userId",
+    "tenantId",
+    "sourceConnectionId",
+    "resolvedAt",
+    "expiresAt",
+    "sourceProfiles",
+    "permissions",
+    "integrity"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference for validation tooling."
+    },
+    "version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "TOLAP schema version. Must be '1.0' for this schema."
+    },
+    "userId": {
+      "type": "string",
+      "description": "Unique identifier of the user this effective policy applies to."
+    },
+    "tenantId": {
+      "type": "string",
+      "description": "Tenant context for this effective policy."
+    },
+    "sourceConnectionId": {
+      "type": "string",
+      "description": "Data source connection this effective policy governs."
+    },
+    "resolvedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this effective policy was computed."
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this effective policy expires. The tool wrapper must reject expired policies."
+    },
+    "sourceProfiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Names of the policy definitions that were merged to produce this effective policy. Included for audit trail. An EMPTY array is valid and meaningful: it is the deny-all sentinel every SDK produces when no policy matched, so a minItems constraint here would forbid serializing the fail-closed result."
+    },
+    "permissions": {
+      "type": "object",
+      "required": [
+        "canQuery"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "canQuery": {
+          "type": "boolean"
+        },
+        "canInsert": {
+          "type": "boolean"
+        },
+        "canUpdate": {
+          "type": "boolean"
+        },
+        "canDelete": {
+          "type": "boolean"
+        },
+        "readOnly": {
+          "type": "boolean"
+        }
+      }
+    },
+    "purposeProfile": {
+      "type": "object",
+      "required": [
+        "purposeId"
+      ],
+      "additionalProperties": false,
+      "description": "Binds this policy to a declared purpose. When present, the policy only resolves for a caller that declares a matching purposeId, and the tool call must carry an action category the purpose permits. Omit it and the policy is purpose-agnostic, which is the pre-existing behaviour. See docs/canonical-enforcement-spec.md section 15.",
+      "properties": {
+        "purposeId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "description": "Unique purpose identifier, matched against the caller's declared purpose exactly and case-sensitively. Lowercase alphanumeric with hyphens, as for 'name'."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2048,
+          "description": "Human-readable description of the purpose. Carried into audit logs and, when the judge is enabled, into its prompt."
+        },
+        "allowedActions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          },
+          "description": "Action categories permitted under this purpose. Omitted means unrestricted; an empty array denies every action (see docs/canonical-enforcement-spec.md section 3). When present, a tool whose action category is unknown is denied. Intersected on merge."
+        },
+        "prohibitedActions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          },
+          "description": "Action categories denied under this purpose. Takes precedence over allowedActions. Unioned on merge."
+        },
+        "judge": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Optional LLM judge for semantic purpose alignment. Advisory and non-deterministic: it can only deny a call the deterministic checks already allowed, never permit one they denied.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether to consult the judge. Merged with OR: any applicable policy can switch it on."
+            },
+            "model": {
+              "type": "string",
+              "maxLength": 256,
+              "description": "Model identifier, for example 'claude-sonnet'. Two policies naming different models cannot be merged and resolve to deny-all."
+            },
+            "historyWindow": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 10,
+              "description": "Number of recent tool calls to include in the judge's context. Merged with maximum."
+            },
+            "confidenceThreshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.85,
+              "description": "At or above this confidence the judge's verdict is final, allow or block. Merged with maximum: a higher bar sends more calls to escalation."
+            },
+            "escalationThreshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.6,
+              "description": "Below this confidence the call escalates to human review. Merged with maximum. Must not exceed confidenceThreshold; an inverted pair fails closed."
+            },
+            "maxLatencyMs": {
+              "type": "integer",
+              "minimum": 100,
+              "default": 2000,
+              "description": "Wall-clock budget for one judge invocation. A timeout escalates rather than allowing. Merged with minimum."
+            }
+          }
+        }
+      }
+    },
+    "objectRules": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Merged object access rules. Same structure as policy definition objectRules, but values reflect the merge result.",
+      "properties": {
+        "allowedObjects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hiddenObjects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fieldRules": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allowedFields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "hiddenFields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "maskedFields": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "field",
+                  "maskType"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "field": {
+                    "type": "string"
+                  },
+                  "maskType": {
+                    "type": "string",
+                    "enum": [
+                      "full",
+                      "partial",
+                      "hash",
+                      "null",
+                      "redact"
+                    ]
+                  },
+                  "parameters": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "showFirst": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "showLast": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "maskChar": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1
+                      },
+                      "algorithm": {
+                        "type": "string",
+                        "enum": [
+                          "sha256",
+                          "sha512",
+                          "blake2b"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "readOnlyFields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "rowFilters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "field",
+              "operator"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "field": {
+                "type": "string"
+              },
+              "operator": {
+                "type": "string",
+                "comment": "Must stay identical to the operator enum in policy-definition.schema.json: an effective policy is the merged product of definitions, so an operator a definition can express must survive resolution.",
+                "enum": [
+                  "equals",
+                  "notEquals",
+                  "in",
+                  "notIn",
+                  "greaterThan",
+                  "greaterThanOrEqual",
+                  "lessThan",
+                  "lessThanOrEqual",
+                  "contains",
+                  "startsWith",
+                  "like",
+                  "notLike",
+                  "matches",
+                  "isNull",
+                  "isNotNull",
+                  "between"
+                ]
+              },
+              "value": {},
+              "values": {
+                "type": "array",
+                "items": {}
+              }
+            }
+          }
+        },
+        "tagRules": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allowedTags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "deniedTags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "endpointRules": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allowedEndpoints": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "hiddenEndpoints": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "allowedMethods": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "GET",
+                  "HEAD",
+                  "OPTIONS",
+                  "POST",
+                  "PUT",
+                  "PATCH",
+                  "DELETE"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxResults": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minSimilarityScore": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "maxObjectSizeBytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "required": [
+        "algorithm",
+        "signature"
+      ],
+      "additionalProperties": false,
+      "description": "Cryptographic integrity verification. The tool wrapper must validate the signature before enforcing the policy.",
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "enum": [
+            "hmac-sha256",
+            "hmac-sha512",
+            "ed25519"
+          ],
+          "description": "Signing algorithm used to generate the signature."
+        },
+        "signature": {
+          "type": "string",
+          "description": "Base64-encoded signature over the policy content (all fields except integrity)."
+        }
+      }
+    }
+  }
+}

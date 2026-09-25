@@ -1,8 +1,7 @@
+import pytest
 from django.core.checks import run_checks
 from django.core.exceptions import ImproperlyConfigured
 from django.test import override_settings
-import pytest
-
 from django_tolap.conf import settings
 
 
@@ -23,7 +22,7 @@ def test_signing_key_from_settings() -> None:
 @override_settings(TOLAP={})
 def test_missing_signing_key_raises_and_checks_e001() -> None:
     with pytest.raises(ImproperlyConfigured):
-        settings.SIGNING_KEY
+        _ = settings.SIGNING_KEY
     assert "django_tolap.E001" in _ids()
 
 

@@ -90,9 +90,11 @@ class PolicyAssignment(models.Model):
     )
     assignee_type = models.CharField(max_length=32, choices=ASSIGNEE_TYPES)
     assignee_identifier = models.CharField(max_length=255)
-    tenant_id = models.CharField(max_length=255, blank=True, default="", help_text="Empty = any")
+    # 128, not 255: the unique constraint below spans five string columns and MySQL caps an
+    # InnoDB key at 3072 bytes (768 utf8mb4 characters). 128+32+255+128+128 = 671.
+    tenant_id = models.CharField(max_length=128, blank=True, default="", help_text="Empty = any")
     source_connection_id = models.CharField(
-        max_length=255, blank=True, default="", help_text="Empty = any"
+        max_length=128, blank=True, default="", help_text="Empty = any"
     )
     active = models.BooleanField(default=True)
     expires_at = models.DateTimeField(null=True, blank=True)

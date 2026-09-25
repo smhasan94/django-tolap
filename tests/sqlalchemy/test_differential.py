@@ -9,7 +9,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from sqlalchemy import delete, exists, func, insert, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from sqlalchemy_tolap import TolapDenied, enforce
 from sqlalchemy_tolap.enforce import dialect_name
@@ -79,6 +79,8 @@ def test_integration_scenario(seeded: Session, file_name: str, scenario: Any) ->
         for rule in expected["everyRowField"]:
             assert all(r[rule["field"]] == rule["equals"] for r in rows)
 
+
+_alias = aliased(Patient)
 
 STATEMENTS = [
     lambda: select(Patient),

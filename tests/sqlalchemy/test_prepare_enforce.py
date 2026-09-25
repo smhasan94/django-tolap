@@ -165,6 +165,28 @@ def test_denials(seeded: Session) -> None:
     assert str(exc.value) == "Access denied: denied fields: patients.ssn"
 
 
+def test_aliased_root_pushes_onto_the_alias(seeded: Session) -> None:
+    from sqlalchemy.orm import aliased
+
+    p = policy(
+        {
+            "fieldRules": {"hiddenFields": ["ssn"]},
+            "rowFilters": [{"field": "region", "operator": "equals", "value": "us-east"}],
+        },
+        limits={"maxResults": 5},
+    )
+    a = aliased(Patient)
+    prep = prepare_select(select(a).order_by(a.id), p, dialect=dialect_name(seeded))
+    text = sql(prep)
+    assert (
+        text.count("FROM") == 1
+        and "patients_1.region" in text
+        and "patients.region" not in text.replace("patients_1", "")
+    )
+    rows = [dict(r) for r in seeded.execute(prep.statement).mappings()]
+    assert [r["id"] for r in rows] == [1, 3] and "ssn" not in rows[0]
+
+
 def test_connection_executor(seeded: Session) -> None:
     conn = seeded.connection()
     rows = enforce(

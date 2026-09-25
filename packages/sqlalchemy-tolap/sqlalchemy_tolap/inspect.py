@@ -30,6 +30,7 @@ class ColRef:
 @dataclass(frozen=True)
 class Inspection:
     root: Table
+    root_from: FromClause  # the FROM element itself: the Table, or an Alias of it
     tables: dict[str, Table]
     referenced: frozenset[ColRef]  # explicit references only; never a default projection
     projected: tuple[str, ...] | None  # names in the caller's explicit projection, else None
@@ -107,7 +108,13 @@ class _Walker:
 def _entity_tables(stmt: Select[Any]) -> tuple[list[Table], int]:
     """Tables selected whole (``select(Entity)``, ``select(table)``) and the raw column count."""
     raw = list(stmt._raw_columns)
-    return [canonical(rc) for rc in raw if isinstance(rc, Table)], len(raw)
+    tables: list[Table] = []
+    for rc in raw:
+        if isinstance(rc, Table):
+            tables.append(canonical(rc))
+        elif isinstance(rc, Alias) and isinstance(rc.element, Table):
+            tables.append(canonical(rc.element))
+    return tables, len(raw)
 
 
 def inspect(stmt: Any) -> Inspection:
@@ -118,13 +125,15 @@ def inspect(stmt: Any) -> Inspection:
     if not froms:
         raise Uninspectable("statement has no FROM")
     walker.froms(froms)
-    root_from = froms[0]
-    if isinstance(root_from, Join):
-        root = _leftmost(root_from)
-    elif isinstance(root_from, Table):
+    root_from: FromClause = froms[0]
+    while isinstance(root_from, Join):
+        root_from = root_from.left
+    if isinstance(root_from, Table):
         root = canonical(root_from)
+    elif isinstance(root_from, Alias) and isinstance(root_from.element, Table):
+        root = canonical(root_from.element)
     else:
-        root = next(iter(walker.tables.values()))
+        raise Uninspectable(f"{type(root_from).__name__} as the root FROM is not supported")
 
     if stmt.whereclause is not None:
         walker.nodes(stmt.whereclause)
@@ -154,6 +163,10 @@ def inspect(stmt: Any) -> Inspection:
                 walker.refs.add(ColRef(table.name, col.name))
                 projected.append(col.name)
             elif isinstance(col, Label):
+                if col.name in root.columns:
+                    # A row filter on that column would otherwise be evaluated against the
+                    # label's value in the post pass. Django refuses the same shadowing.
+                    raise Uninspectable(f"label {col.name!r} shadows a column of {root.name}")
                 sub = _Walker()
                 sub.tables = walker.tables
                 sub.nodes(col.element)
@@ -165,6 +178,7 @@ def inspect(stmt: Any) -> Inspection:
 
     return Inspection(
         root=root,
+        root_from=root_from,
         tables=dict(walker.tables),
         referenced=frozenset(walker.refs),
         projected=tuple(projected) if explicit else None,
@@ -173,14 +187,3 @@ def inspect(stmt: Any) -> Inspection:
         limit=stmt._limit,
         offset=stmt._offset,
     )
-
-
-def _leftmost(join: Join) -> Table:
-    left: Any = join.left
-    while isinstance(left, Join):
-        left = left.left
-    if isinstance(left, Table):
-        return canonical(left)
-    if isinstance(left, Alias) and isinstance(left.element, Table):
-        return canonical(left.element)
-    raise Uninspectable(f"{type(left).__name__} as the root FROM is not supported")

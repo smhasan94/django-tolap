@@ -112,13 +112,17 @@ _ORDERING = {
 }
 
 
-def compile_filter(rf: RowFilter, table: Table, dialect: str) -> ColumnElement[bool] | None:
+def compile_filter(
+    rf: RowFilter, table: Table, dialect: str, *, source: Any = None
+) -> ColumnElement[bool] | None:
+    """Criteria for ``rf`` on ``table``'s column, taken from ``source`` (an alias) if given."""
     rules = dialect_rules(dialect)
     if rules is None or rf.operator in NEVER_PUSHED:
         return None
-    col = resolve_column(rf, table)
-    if col is None or col.foreign_keys:
+    resolved = resolve_column(rf, table)
+    if resolved is None or resolved.foreign_keys:
         return None
+    col: Column[Any] = source.c[resolved.name] if source is not None else resolved
     op = rf.operator
     if op is FilterOperator.is_null:
         return col.is_(None)
@@ -233,7 +237,7 @@ def prepare_select(
 
     root = ins.root
     rules = FieldRules.of(policy)
-    by_name = {c.name: c for c in root.columns}
+    by_name = {c.name: ins.root_from.c[c.name] for c in root.columns}  # alias-aware
     visible = tuple(c.name for c in root.columns if field_visible(rules, f"{root.name}.{c.name}"))
 
     if ins.projected is None:
@@ -268,7 +272,7 @@ def prepare_select(
     unpushable: list[RowFilter] = []
     prepared: Select[Any] = stmt
     for rf in row_filters:
-        crit = compile_filter(rf, root, dialect) if push else None
+        crit = compile_filter(rf, root, dialect, source=ins.root_from) if push else None
         if crit is None:
             unpushable.append(rf)
         else:

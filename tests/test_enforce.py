@@ -271,7 +271,7 @@ def test_qualified_root_filter_is_not_intercepted_by_a_joined_key(seeded: None) 
             },
         }
     )
-    qs = Patient.objects.values("encounters__region", "id").order_by("id")
+    qs = Patient.objects.values("encounters__region", "id").order_by("id", "encounters__id")
     results = [enforce(qs, signed(p), mode=mode) for mode in EnforcementMode]
     for rows in results:
         assert rows and {r["id"] for r in rows} <= {1, 3}

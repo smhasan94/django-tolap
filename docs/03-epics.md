@@ -8,7 +8,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 
 | Epic | Title | Status |
 | --- | --- | --- |
-| E1 | QuerySet enforcement core (installable, demoable) | in progress |
+| E1 | QuerySet enforcement core (installable, demoable) | done |
 | E2 | Django-model policy store, admin, contexts | todo |
 | E3 | Tool helper and DRF integration | todo |
 | E4 | Differential hardening and gap measurement | todo |
@@ -17,7 +17,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 
 ---
 
-## E1. QuerySet enforcement core — status: in progress
+## E1. QuerySet enforcement core — status: done
 
 Outcome: `pip install git+…#subdirectory=packages/django-tolap`, then
 `enforce(Patient.objects.filter(...), context)` returns post-passed dicts with pushdown, on
@@ -35,7 +35,7 @@ SQLite and PostgreSQL, proven equal to post-pass-only against upstream fixtures.
 | E1-S8 | `enforce()` with mandatory post pass | FR-12 | E1-S7 | done |
 | E1-S9 | Differential suite: fixtures + Hypothesis on SQLite | FR-13 | E1-S8 | done |
 | E1-S10 | PostgreSQL CI leg and `like` pushdown proof | FR-8, FR-13, FR-20 | E1-S9 | done |
-| E1-S11 | README quickstart (in-code policy) | FR-1 | E1-S8 | todo |
+| E1-S11 | README quickstart (in-code policy) | FR-1 | E1-S8 | done |
 
 **E1-S1 Monorepo scaffold and CI skeleton.**
 AC: `uv sync` works; `packages/django-tolap/pyproject.toml` (name `django-tolap`, import

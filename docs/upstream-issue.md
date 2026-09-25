@@ -28,8 +28,10 @@ to ask whether you would link to them from the integrations list, or host them u
     `deserialize_policy_definition`, schema-drift warnings, resolve preview, audit log.
   - A `@tolap_tool` decorator and Django REST Framework mixins (`validate_write` gates
     writes; the target row is fetched under the policy first).
-- **`sqlalchemy-tolap`** — the same for SQLAlchemy `Select`, sharing the test harness. In
-  progress.
+- **`sqlalchemy-tolap`** (same repo, `packages/sqlalchemy-tolap`) — the same checks,
+  pushdown rules and post pass for SQLAlchemy 2.x `Select` statements, sharing the test
+  harness and the differential proof below. Entity selects are the default projection;
+  `text()`, `literal_column()`, derived tables and set operations are refused.
 
 ## Why an ORM adapter rather than the string rewriter
 

@@ -8,7 +8,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 
 | Epic | Title | Status |
 | --- | --- | --- |
-| E1 | QuerySet enforcement core (installable, demoable) | todo |
+| E1 | QuerySet enforcement core (installable, demoable) | in progress |
 | E2 | Django-model policy store, admin, contexts | todo |
 | E3 | Tool helper and DRF integration | todo |
 | E4 | Differential hardening and gap measurement | todo |
@@ -17,7 +17,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 
 ---
 
-## E1. QuerySet enforcement core — status: todo
+## E1. QuerySet enforcement core — status: in progress
 
 Outcome: `pip install git+…#subdirectory=packages/django-tolap`, then
 `enforce(Patient.objects.filter(...), context)` returns post-passed dicts with pushdown, on
@@ -25,7 +25,7 @@ SQLite and PostgreSQL, proven equal to post-pass-only against upstream fixtures.
 
 | Story | Title | FRs | Depends on | Status |
 | --- | --- | --- | --- | --- |
-| E1-S1 | Monorepo scaffold and CI skeleton | FR-1, FR-20 | — | todo |
+| E1-S1 | Monorepo scaffold and CI skeleton | FR-1, FR-20 | — | done |
 | E1-S2 | App config, settings, system checks | FR-1, FR-2 | E1-S1 | todo |
 | E1-S3 | Upstream fixture loader and test models | FR-13 | E1-S1 | todo |
 | E1-S4 | QuerySet field extraction and inspectability | FR-7 | E1-S2 | todo |

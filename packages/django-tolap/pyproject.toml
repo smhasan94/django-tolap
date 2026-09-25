@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "django-tolap"
+version = "0.1.0.dev0"
+description = "TOLAP policies managed in Django admin and enforced on your QuerySets"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [{ name = "Sharukh Hasan" }]
+keywords = ["django", "tolap", "access-control", "ai-agents", "mcp"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Framework :: Django",
+  "Framework :: Django :: 5.2",
+  "Framework :: Django :: 6.0",
+  "Framework :: Django :: 6.1",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Security",
+]
+dependencies = [
+  "Django>=5.2,<6.2",
+  "tolap-core>=1.0,<2",
+  "tolap-store>=1.0,<2",
+]
+
+[project.optional-dependencies]
+drf = ["djangorestframework>=3.16"]
+
+[project.urls]
+Homepage = "https://github.com/smhasan94/django-tolap"
+Issues = "https://github.com/smhasan94/django-tolap/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["django_tolap"]

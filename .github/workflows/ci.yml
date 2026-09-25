@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13", "3.14"]
+        django: ["5.2", "6.0", "6.1"]
+        exclude:
+          - python: "3.11"
+            django: "6.0"
+          - python: "3.11"
+            django: "6.1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --frozen
+      - run: uv pip install "Django~=${{ matrix.django }}.0"
+      - run: make lint
+      - run: make type
+      - run: make test

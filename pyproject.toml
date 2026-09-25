@@ -1,0 +1,55 @@
+[project]
+name = "tolap-adapters"
+version = "0.0.0"
+description = "Workspace root for django-tolap and sqlalchemy-tolap"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+django-tolap = { workspace = true }
+
+[dependency-groups]
+dev = [
+  "django-tolap",
+  "pytest>=8.3",
+  "pytest-django>=4.9",
+  "hypothesis>=6.100",
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "django-stubs[compatible-mypy]>=5.1",
+  "psycopg[binary]>=3.2",
+  "dj-database-url>=2.3",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["**/migrations/*", "docs", "*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "W"]
+
+[tool.mypy]
+strict = true
+files = ["packages/django-tolap/django_tolap"]
+plugins = ["mypy_django_plugin.main"]
+mypy_path = ["packages/django-tolap"]
+
+[[tool.mypy.overrides]]
+module = ["tolap_core.*", "tolap_store.*"]
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "tests.settings"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider"

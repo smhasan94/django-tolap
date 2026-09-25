@@ -1,0 +1,7 @@
+django-tolap and sqlalchemy-tolap
+Copyright 2026 Sharukh Hasan
+
+Adapters for TOLAP (Tool-Object Level Access Protocol), https://github.com/awslabs/tolap,
+Copyright Amazon.com, Inc. or its affiliates, licensed under the Apache License 2.0.
+This project depends on the published tolap-core and tolap-store packages and does not
+include their source.

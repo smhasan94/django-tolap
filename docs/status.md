@@ -7,9 +7,10 @@ polish done 2026-09-25: badges, `CONTRIBUTING.md`, `SECURITY.md`, issue and PR t
 PyPI-facing package READMEs. Repo is public with private vulnerability reporting on;
 CI green on every leg. No tag, no release, nothing posted upstream.
 
+Upstream issue posted 2026-09-25: https://github.com/awslabs/tolap/issues/31.
+
 **Waiting on the owner.**
-1. Post `docs/upstream-issue.md` to github.com/awslabs/tolap/issues.
-2. Publish `django-tolap` and `sqlalchemy-tolap` 0.1.0 to PyPI (and tag) when ready:
+1. Publish `django-tolap` and `sqlalchemy-tolap` 0.1.0 to PyPI (and tag) when ready:
    rebuild with `uv build --all-packages` into a clean `dist/`, run
    `uv run --with twine twine check dist/*`, then upload. Afterwards drop the "Not on PyPI
    yet" paragraph in `README.md` and date the `0.1.0 — unreleased` heading in `CHANGELOG.md`.

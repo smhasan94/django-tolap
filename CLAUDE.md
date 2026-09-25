@@ -94,6 +94,10 @@ result limits. Upstream ships Python packages `tolap-core`, `tolap-store`, `tola
   changes. Fix issues, rerun tests, commit, push. Mark the epic "reviewed" in
   `docs/03-epics.md`, then return to Phase 5 for the next epic.
 
+## Current status
+
+See `docs/status.md` for where the build stands, what waits on the owner, and the backlog.
+
 ## Repo conventions
 
 - Python tooling: `uv`, `pytest`, `ruff`, `mypy`.

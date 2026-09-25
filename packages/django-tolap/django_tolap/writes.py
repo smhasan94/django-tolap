@@ -24,6 +24,7 @@ from django_tolap.exceptions import TolapDenied
 from django_tolap.objects import object_name
 
 TARGET_NOT_PERMITTED = "target row not permitted"
+WRITE_TARGET_UNVERIFIABLE = "write target unverifiable"  # upstream reason, parity-tested
 
 HTTP_WRITE_OPERATIONS: dict[str, WriteOperation] = {
     "POST": WriteOperation.insert,

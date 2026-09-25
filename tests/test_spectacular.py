@@ -1,9 +1,9 @@
 """drf-spectacular schema generation for ``TolapViewSetMixin`` views.
 
-A public schema (no caller) documents the whole serializer and every method. A schema
-served to an authenticated caller (``SERVE_PUBLIC = False``) is that caller's view of the
-API: hidden fields are absent, masked fields are annotated, write methods the policy refuses
-are absent, and an object the policy denies has no operations at all.
+A schema with no caller documents the whole serializer and every method. A schema generated
+for an authenticated caller is that caller's view of the API: hidden fields are absent,
+masked fields are annotated, write methods the policy refuses are absent, and an object the
+policy denies has no operations at all.
 """
 
 from __future__ import annotations
@@ -105,7 +105,7 @@ def test_viewset_mixin_without_drf_spectacular_leaves_schema_alone(monkeypatch) 
 
     import django_tolap.drf as drf
 
-    monkeypatch.setitem(sys.modules, "django_tolap.spectacular", None)  # import raises
+    monkeypatch.setitem(sys.modules, "drf_spectacular", None)  # find_spec() -> None
     try:
         assert "schema" not in importlib.reload(drf).TolapViewSetMixin.__dict__
     finally:
@@ -151,3 +151,117 @@ def test_mask_annotation_ignores_fields_that_are_not_model_columns(alice, rf) ->
     schema = TolapAutoSchema()
     schema.view = view
     assert schema._tolap_mask(serializers.CharField()) is None  # no field_name: not a column
+
+
+def test_authenticated_caller_is_narrowed_even_when_served_public(alice) -> None:  # type: ignore[no-untyped-def]
+    """drf-spectacular hands the caller to the view whether or not SERVE_PUBLIC is set."""
+    grant(alice)
+    client = APIClient()
+    client.force_authenticate(alice)
+    schema = client.get("/api/schema/?format=json").json()
+    assert set(schema["paths"][LIST]) == {"get"} and "ssn" not in patient_properties(schema)
+    anonymous = APIClient().get("/api/schema/?format=json").json()
+    assert set(anonymous["paths"][LIST]) == {"get", "post"}
+    assert "ssn" in patient_properties(anonymous)
+
+
+def test_unverifiable_target_reason_matches_upstream(alice) -> None:  # type: ignore[no-untyped-def]
+    from tolap_core import WriteOperation, validate_write
+
+    from django_tolap.store import DjangoPolicyStore
+    from django_tolap.writes import WRITE_TARGET_UNVERIFIABLE
+
+    grant(alice, permissions={"readOnly": False, "canUpdate": True})
+    policy = DjangoPolicyStore().resolve_policy(str(alice.pk), "default", "db:testapp:patients")
+    result = validate_write(WriteOperation.update, "patients", {}, policy)
+    assert not result.allowed and result.reason == WRITE_TARGET_UNVERIFIABLE
+
+
+def bound_view(alice, rf):  # type: ignore[no-untyped-def]
+    from tests.drf_app import PatientViewSet
+
+    view = PatientViewSet()
+    request = rf.get("/api/patients/")
+    force_authenticate(request, user=alice)
+    view.request = Request(request)
+    view.format_kwarg = None
+    return view
+
+
+def test_fields_are_keyed_by_source_column_and_owning_serializer(alice, rf) -> None:  # type: ignore[no-untyped-def]
+    from rest_framework import serializers
+
+    from django_tolap.drf import TolapSerializerMixin
+    from django_tolap.spectacular import TolapAutoSchema
+    from tests.testapp.models import Patient
+
+    class Renamed(TolapSerializerMixin, serializers.ModelSerializer):  # type: ignore[type-arg]
+        national_id = serializers.CharField(source="ssn")
+        contact = serializers.CharField(source="email")
+        home = serializers.CharField(source="region", required=False)
+
+        class Meta:
+            model = Patient
+            fields = ["id", "national_id", "contact", "home"]
+
+    class Wrapper(serializers.Serializer):  # type: ignore[type-arg]
+        patient = Renamed()
+        email = serializers.CharField()  # no model behind it: never annotated
+
+    grant(alice)
+    view = bound_view(alice, rf)
+    fields = Renamed(context={"view": view}).fields
+    assert "national_id" not in fields and {"id", "contact", "home"} <= set(fields)
+    schema = TolapAutoSchema()
+    schema.view = view
+    wrapper = Wrapper(context={"view": view}).fields
+    assert schema._tolap_mask(wrapper["patient"].fields["contact"]) == "hash"
+    assert schema._tolap_mask(wrapper["patient"].fields["home"]) is None
+    assert schema._tolap_mask(wrapper["email"]) is None
+
+
+def test_view_whose_model_cannot_be_named_is_omitted_for_a_caller(alice, rf) -> None:  # type: ignore[no-untyped-def]
+    from django_tolap.spectacular import TolapAutoSchema
+    from tests.drf_app import PatientViewSet
+
+    class Nested(PatientViewSet):
+        queryset = None
+
+        def get_queryset(self):  # type: ignore[no-untyped-def]
+            return super().get_queryset().filter(id=self.kwargs["clinic_pk"])  # mock: KeyError
+
+    grant(alice)
+    view = Nested()
+    request = rf.get("/api/patients/")
+    force_authenticate(request, user=alice)
+    view.request = Request(request)
+    view.kwargs = {}
+    schema = TolapAutoSchema()
+    schema.view = view
+    assert schema._tolap_refuses("GET") is True
+    view.request = Request(rf.get("/api/patients/"))  # no caller: nothing to judge
+    schema = TolapAutoSchema()
+    schema.view = view
+    assert schema._tolap_refuses("GET") is False
+
+
+def test_serializer_mixin_honours_a_plain_tolap_policy_attribute(alice, rf) -> None:  # type: ignore[no-untyped-def]
+    from django_tolap.store import DjangoPolicyStore
+    from tests.drf_app import PatientSerializer
+    from tests.testapp.models import Patient
+
+    grant(alice)
+    policy = DjangoPolicyStore().resolve_policy(str(alice.pk), "default", "db:testapp:patients")
+
+    class Custom:
+        tolap_policy = policy
+        queryset = Patient.objects.all()
+
+    assert "ssn" not in PatientSerializer(context={"view": Custom()}).fields
+
+
+def test_schema_descriptor_binds_a_fresh_inspector_per_access() -> None:
+    from tests.drf_app import PatientViewSet
+
+    a, b = PatientViewSet(), PatientViewSet()
+    assert a.schema is not b.schema and a.schema.view is a and b.schema.view is b

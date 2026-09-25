@@ -10,19 +10,22 @@ serializer-based rendering agree with what ``enforce`` returns. With no caller i
 (an anonymous request, a public schema) there is no policy and the serializer is unchanged.
 
 When ``drf-spectacular`` is installed the viewset mixin sets
-:class:`~django_tolap.spectacular.TolapAutoSchema` as its ``schema``, so a schema served to
-an authenticated caller is that caller's view of the API.
+:class:`~django_tolap.spectacular.TolapAutoSchema` as its ``schema``, so a schema generated
+for an authenticated caller is that caller's view of the API.
 """
 
 from __future__ import annotations
 
+import importlib.util
 from collections.abc import Callable
 from typing import Any
 
+from django.db.models import Model
 from django.utils.module_loading import import_string
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.schemas.inspectors import ViewInspector
 from tolap_core import EffectivePolicy, WriteOperation, validate_write
 
 from django_tolap.conf import settings
@@ -34,11 +37,7 @@ from django_tolap.precheck import FieldRules, field_visible
 from django_tolap.tool import IDENTITY_MISSING, ToolContext
 from django_tolap.writes import HTTP_WRITE_OPERATIONS
 
-_AutoSchema: type[Any] | None
-try:
-    from django_tolap.spectacular import TolapAutoSchema as _AutoSchema
-except ImportError:  # drf-spectacular is optional
-    _AutoSchema = None
+HAS_SPECTACULAR = importlib.util.find_spec("drf_spectacular") is not None
 
 WRITE_OPERATIONS = HTTP_WRITE_OPERATIONS
 
@@ -51,13 +50,66 @@ def _tenant_resolver() -> Callable[[Request], str]:
     return resolver
 
 
+def view_policy(view: Any) -> EffectivePolicy | None:
+    """The policy a view resolves for its caller, or ``None`` when there is no caller.
+
+    A ``TolapViewSetMixin`` view answers through ``tolap_policy_or_none``; any other view may
+    expose a ``tolap_policy`` attribute.
+    """
+    resolve = getattr(view, "tolap_policy_or_none", None)
+    if callable(resolve):
+        policy: EffectivePolicy | None = resolve()
+        return policy
+    fallback: EffectivePolicy | None = getattr(view, "tolap_policy", None)
+    return fallback
+
+
+def view_model(view: Any) -> type[Model]:
+    """The view's model, from ``queryset`` when set (safe under a mock request)."""
+    queryset = getattr(view, "queryset", None)
+    if queryset is not None:
+        model: type[Model] = queryset.model
+        return model
+    resolved: type[Model] = view.get_queryset().model
+    return resolved
+
+
+def serializer_model(serializer: Any) -> type[Model] | None:
+    """``Meta.model`` of a ``ModelSerializer``, else ``None``."""
+    model: type[Model] | None = getattr(getattr(serializer, "Meta", None), "model", None)
+    return model
+
+
+def field_column(name: str, field: Any) -> str | None:
+    """The model column a serializer field reads: its single-hop ``source``, else its name."""
+    source: str | None = getattr(field, "source", None) or name
+    if not source or source == "*" or "." in source:
+        return None
+    return source
+
+
+class TolapSchema(ViewInspector):  # type: ignore[misc]
+    """Descriptor handing out a fresh ``TolapAutoSchema`` per access, like DRF's default.
+
+    A class-level inspector instance would be shared by every request; drf-spectacular binds
+    the view onto it, so concurrent per-caller schema requests must not share one.
+    """
+
+    def __get__(self, instance: Any, owner: Any) -> Any:
+        from django_tolap.spectacular import TolapAutoSchema
+
+        inspector = TolapAutoSchema()
+        inspector.view = instance
+        return inspector
+
+
 class TolapViewSetMixin:
     """Mix into a DRF ``GenericViewSet``/``ModelViewSet`` and set ``tolap_source``."""
 
     tolap_source: str = ""
     _tolap: ToolContext | None = None
-    if _AutoSchema is not None:
-        schema = _AutoSchema()
+    if HAS_SPECTACULAR:
+        schema = TolapSchema()
 
     # -- identity and context --
 
@@ -165,16 +217,16 @@ class TolapSerializerMixin:
     def get_fields(self) -> dict[str, Any]:
         fields: dict[str, Any] = super().get_fields()  # type: ignore[misc]
         view = self.context.get("view")  # type: ignore[attr-defined]
-        resolve = getattr(view, "tolap_policy_or_none", None)
-        policy = resolve() if callable(resolve) else None
+        policy = view_policy(view) if view is not None else None
         if policy is None:
             return fields
-        model = view.get_queryset().model
+        model = serializer_model(self) or view_model(view)
         rules = FieldRules.of(policy)
         obj = object_name(model)
         concrete = {f.name for f in model._meta.concrete_fields}
-        return {
-            name: field
-            for name, field in fields.items()
-            if name not in concrete or field_visible(rules, f"{obj}.{name}")
-        }
+
+        def visible(name: str, field: Any) -> bool:
+            column = field_column(name, field)
+            return column not in concrete or field_visible(rules, f"{obj}.{column}")
+
+        return {name: field for name, field in fields.items() if visible(name, field)}

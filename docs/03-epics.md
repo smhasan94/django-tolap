@@ -12,7 +12,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 | E2 | Django-model policy store, admin, contexts | reviewed |
 | E3 | Tool helper and DRF integration | reviewed |
 | E4 | Differential hardening and gap measurement | reviewed |
-| E5 | Example app, benchmark, README, upstream issue | in progress |
+| E5 | Example app, benchmark, README, upstream issue | done |
 | E6 | SQLAlchemy adapter | todo |
 
 ---
@@ -207,14 +207,14 @@ tests assert the `Q`/`None` without executing; README compatibility table says "
 
 ---
 
-## E5. Example app, benchmark, README, upstream issue — status: in progress
+## E5. Example app, benchmark, README, upstream issue — status: done
 
 | Story | Title | FRs | Depends on | Status |
 | --- | --- | --- | --- | --- |
 | E5-S1 | `examples/clinic` app with seed command | FR-17 | E2-S7 | done |
 | E5-S2 | Benchmark script: SQL, rows fetched, RSS, latency | FR-17 | E5-S1 | done |
-| E5-S3 | README rewrite with benchmark headline and gap summary | FR-17, FR-14 | E5-S2, E4-S3 | todo |
-| E5-S4 | `docs/upstream-issue.md` | FR-18 | E5-S3 | todo |
+| E5-S3 | README rewrite with benchmark headline and gap summary | FR-17, FR-14 | E5-S2, E4-S3 | done |
+| E5-S4 | `docs/upstream-issue.md` | FR-18 | E5-S3 | done |
 
 **E5-S1.** AC: `Patient` across regions; `manage.py seed_patients --rows 1000000`; one
 `patients_search` tool via `@tolap_tool`.

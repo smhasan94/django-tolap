@@ -117,3 +117,12 @@ This mirrors `InMemoryPolicyStore._assignment_matches_user` but in one query.
 | `to_field="name"` FK complicates renames | Low | Renames are edits to `body["name"]` blocked by form when assignments exist |
 | Admin JSON editing is error-prone | Medium | Inline upstream error messages; drift warnings; resolve preview |
 | Signing key in settings only | — | System check; never persisted |
+
+## Updated after E1 (2026-09-25)
+
+- Field denials now read ``denied fields: <qualified names>`` (upstream wrapper text), not
+  the rewriter's generic sentence. Admin messages and tests use that form.
+- ``enforce()`` gained ``mode`` (``EnforcementMode``, mirrors upstream). ``issue_context``
+  is unaffected.
+- Scope columns on ``PolicyAssignment`` store ``""`` for "unscoped" rather than ``NULL`` so
+  the uniqueness constraint holds on every backend; ``to_upstream()`` maps ``""`` to ``None``.

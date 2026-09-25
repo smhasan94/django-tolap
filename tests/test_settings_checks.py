@@ -5,6 +5,8 @@ from django.test import override_settings
 
 from django_tolap.conf import settings
 
+pytestmark = pytest.mark.django_db  # run_checks() includes database checks once models exist
+
 
 def _ids() -> set[str]:
     return {m.id for m in run_checks()}

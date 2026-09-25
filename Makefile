@@ -5,6 +5,7 @@ check: lint type test
 lint:
 	uv run ruff check .
 	uv run ruff format --check .
+	PYTHONPATH=. uv run python -m django makemigrations --check --dry-run --settings tests.settings django_tolap
 
 fmt:
 	uv run ruff format .

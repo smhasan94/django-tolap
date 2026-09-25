@@ -9,7 +9,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 | Epic | Title | Status |
 | --- | --- | --- |
 | E1 | QuerySet enforcement core (installable, demoable) | reviewed |
-| E2 | Django-model policy store, admin, contexts | todo |
+| E2 | Django-model policy store, admin, contexts | in progress |
 | E3 | Tool helper and DRF integration | todo |
 | E4 | Differential hardening and gap measurement | todo |
 | E5 | Example app, benchmark, README, upstream issue | todo |
@@ -110,14 +110,14 @@ AC: README shows install from git, a policy dict deserialized with upstream
 
 ---
 
-## E2. Django-model policy store, admin, contexts — status: todo
+## E2. Django-model policy store, admin, contexts — status: in progress
 
 Outcome: policies authored in Django admin; `issue_context()` resolves, merges (upstream),
 signs; quickstart no longer needs an in-code policy.
 
 | Story | Title | FRs | Depends on | Status |
 | --- | --- | --- | --- | --- |
-| E2-S1 | Models and migrations | FR-3 | E1-S2 | todo |
+| E2-S1 | Models and migrations | FR-3 | E1-S2 | done |
 | E2-S2 | `DjangoPolicyStore` and identity resolver | FR-3, FR-5 | E2-S1 | todo |
 | E2-S3 | Store conformance against upstream fixtures | FR-3 | E2-S2 | todo |
 | E2-S4 | Admin registration and validation | FR-4, FR-11 | E2-S2 | todo |

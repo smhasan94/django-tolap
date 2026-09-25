@@ -237,3 +237,23 @@ each, no AI attribution in commit messages or PR descriptions, as before. Direct
 
 **Rationale.** Both packages are released; a reviewable history per change matters more now
 than the speed of committing straight to `main`.
+
+## 2026-09-25 — Releases through tags and PyPI trusted publishing
+
+**Question.** 0.1.0 and 0.1.1 were uploaded by hand with an account-wide PyPI token created
+and deleted around each upload. Two packages live in one repository and version
+independently, so a plain `vX.Y.Z` tag no longer says what is being released.
+
+**Options.**
+1. Tag `<package>-v<version>`; a workflow on that tag pattern builds and publishes that one
+   package via trusted publishing (OIDC, no stored secret) and creates the GitHub release.
+2. One `vX.Y.Z` tag releasing both packages together, versions kept in lockstep.
+3. Keep manual uploads with project-scoped tokens.
+
+**Decision.** Option 1. `v0.1.0` and `v0.1.1` stay as they are; from now on tags are
+`django-tolap-v…` and `sqlalchemy-tolap-v…`. The workflow checks the tag against the
+package's `pyproject.toml` version and runs the suite before building.
+
+**Rationale.** Lockstep versions would publish no-op releases of the unchanged package.
+Trusted publishing removes the token lifecycle entirely; the `pypi` GitHub environment can
+carry a required-reviewer rule if the owner wants a manual gate.

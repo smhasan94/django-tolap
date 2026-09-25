@@ -22,7 +22,12 @@ key cannot be created on MySQL, fixed by migration `0002` (see `CHANGELOG.md`, u
 **Released.** `django-tolap` 0.1.1 on PyPI 2026-09-25, tagged `v0.1.1`, fresh install verified
 with migration `0002` present. `sqlalchemy-tolap` stays at 0.1.0.
 
-**Waiting on the owner.** Nothing. Next release: create project-scoped PyPI tokens
+**Waiting on the owner.** Configure trusted publishing once (decision 2026-09-25, "Releases
+through tags"): on PyPI, for each of `django-tolap` and `sqlalchemy-tolap`, Manage →
+Publishing → add a GitHub publisher with owner `smhasan94`, repository `django-tolap`, workflow
+`release.yml`, environment `pypi`. On GitHub, Settings → Environments → create `pypi`
+(optionally with yourself as required reviewer). Then the next release is a tag push, see
+`CONTRIBUTING.md` "Releasing". Next release: create project-scoped PyPI tokens
 or set up trusted publishing before uploading.
 
 **How to resume.** `uv sync && make check` (SQLite). PostgreSQL:

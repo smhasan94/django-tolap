@@ -135,3 +135,12 @@ INTEGRATION_FILES = (
 
 def all_scenarios() -> list[tuple[str, Scenario]]:
     return [(f, s) for f in INTEGRATION_FILES for s in integration_scenarios(f)]
+
+
+def us_east_filter(string_equality: bool) -> dict[str, Any]:
+    """A row filter selecting upstream's two ``us-east`` patients (ids 1 and 3) that is pushed
+    on the vendor at hand: ``region equals`` where string equality is pushed, otherwise
+    ``id in`` (integers push everywhere)."""
+    if string_equality:
+        return {"field": "region", "operator": "equals", "value": "us-east"}
+    return {"field": "id", "operator": "in", "values": [1, 3]}

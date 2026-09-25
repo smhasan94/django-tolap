@@ -54,6 +54,30 @@ jobs:
           PYTHONPATH=. uv run python -m tests.gap.report > /tmp/gap-report.md
           diff -u docs/gap-report.md /tmp/gap-report.md
 
+  mysql:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: tolap
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -uroot -proot --silent" --health-interval 5s
+          --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: mysql://root:root@127.0.0.1:3306/tolap
+      HYPOTHESIS_PROFILE: ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - run: sudo apt-get update -q && sudo apt-get install -y -q default-libmysqlclient-dev pkg-config
+      - run: uv sync --frozen
+      - run: make test
+
   quickstart:
     runs-on: ubuntu-latest
     steps:

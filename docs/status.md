@@ -13,7 +13,14 @@ Upstream issue posted 2026-09-25: https://github.com/awslabs/tolap/issues/31.
 tagged `v0.1.0`. Fresh-venv install and import verified. Commit history rewritten the same
 day to use the GitHub noreply email; `CLAUDE.md` untracked.
 
-**Waiting on the owner.** Nothing for v0.1.0. Next release: create project-scoped PyPI tokens
+**Since 0.1.0.** MySQL 8.4 CI leg added 2026-09-25; it exposed that 0.1.0's assignment unique
+key cannot be created on MySQL, fixed by migration `0002` (see `CHANGELOG.md`, unreleased
+0.1.1). Local MySQL for the suite: `docker run -d --name tolap-mysql -e MYSQL_ROOT_PASSWORD=root
+-e MYSQL_DATABASE=tolap -p 3307:3306 mysql:8.4`, then
+`DATABASE_URL=mysql://root:root@127.0.0.1:3307/tolap uv run pytest -q`.
+
+**Waiting on the owner.** Release 0.1.1 (version bump in both `pyproject.toml`, date the
+changelog heading, build, upload, tag) when convenient; it is the MySQL fix. Next release: create project-scoped PyPI tokens
 or set up trusted publishing before uploading.
 
 **How to resume.** `uv sync && make check` (SQLite). PostgreSQL:
@@ -24,7 +31,6 @@ Regenerate the gap report with `DATABASE_URL=... make gap-report`.
 **Backlog (post-v0.1, in rough priority order).**
 - Purpose binding, delegation chains, judge: when `tolap-core` 1.1 reaches PyPI. Four merge
   scenario fixtures are skipped until then; the upstream-`main` CI leg reports drift.
-- MySQL CI leg (rules exist in `VENDORS["mysql"]`/`DIALECTS["mysql"]`, untested).
 - Thin wrappers for `Manager.raw()` / cursor paths over upstream's string rewriter
   (decision 2026-09-25 item 5).
 - `tolap_resolve` management command.

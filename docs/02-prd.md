@@ -224,8 +224,8 @@ and `prepare_select()`.
 
 **Compatibility.**
 - Python 3.11–3.14; Django 5.2, 6.0, 6.1; SQLAlchemy 2.0, 2.1; DRF ≥ 3.16 as extra.
-- Vendors: SQLite and PostgreSQL tested in CI; MySQL rules implemented per upstream but
-  marked "untested" until a CI leg exists; Oracle falls back to post-only.
+- Vendors: SQLite, PostgreSQL and MySQL tested in CI (MySQL added 2026-09-25); Oracle falls
+  back to post-only.
 - `tolap-core>=1.0,<2`, `tolap-store>=1.0,<2`.
 
 **Dependency budget.**

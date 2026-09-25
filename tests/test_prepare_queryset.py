@@ -4,8 +4,8 @@ import pytest
 from django.db import connection
 from django.db.models import Count
 
-from django_tolap.pushdown import NO_FIELDS_VISIBLE, prepare_queryset
-from tests.harness.fixtures import effective_policy
+from django_tolap.pushdown import NO_FIELDS_VISIBLE, VENDORS, prepare_queryset
+from tests.harness.fixtures import effective_policy, us_east_filter
 from tests.testapp.models import Patient
 
 pytestmark = pytest.mark.django_db
@@ -37,7 +37,7 @@ def test_default_projection_drops_hidden_and_yields_dicts(seeded: None) -> None:
 
 def test_row_filter_pushed_and_limit_applied(seeded: None) -> None:
     p = policy(
-        {"rowFilters": [{"field": "region", "operator": "equals", "value": "us-east"}]},
+        {"rowFilters": [us_east_filter(VENDORS[connection.vendor].string_equality)]},
         limits={"maxResults": 1},
     )
     prep = prepare_queryset(Patient.objects.order_by("id"), p)

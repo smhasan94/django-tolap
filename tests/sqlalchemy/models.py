@@ -12,7 +12,15 @@ import os
 from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, MetaData, String, Table, Text
 from sqlalchemy.orm import DeclarativeBase
 
-SCHEMA = "tolap_sa" if os.environ.get("DATABASE_URL", "").startswith("postgres") else None
+_URL = os.environ.get("DATABASE_URL", "")
+# PostgreSQL: a schema inside Django's throwaway test database. MySQL has no schemas below a
+# database, so it is a second throwaway database created and dropped by the engine fixture.
+if _URL.startswith("postgres"):
+    SCHEMA: str | None = "tolap_sa"
+elif _URL.startswith("mysql"):
+    SCHEMA = "test_tolap_sa"
+else:
+    SCHEMA = None
 metadata = MetaData(schema=SCHEMA)
 
 

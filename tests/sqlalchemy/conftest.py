@@ -25,13 +25,15 @@ SIGNING_KEY = "test-signing-key"
 
 @pytest.fixture(scope="session")
 def sa_engine(django_db_setup, django_db_blocker) -> Iterator[Engine]:  # type: ignore[no-untyped-def]
-    """SQLite in memory, or Django's throwaway PostgreSQL test database under schema tolap_sa."""
+    """SQLite in memory, a schema in Django's throwaway PostgreSQL test database, or a
+    throwaway MySQL database next to it."""
     with django_db_blocker.unblock():
         settings = dict(connection.settings_dict)
         vendor = connection.vendor
-    if vendor == "postgresql":
+    drivers = {"postgresql": "postgresql+psycopg", "mysql": "mysql+mysqldb"}
+    if vendor in drivers:
         url = URL.create(
-            "postgresql+psycopg",
+            drivers[vendor],
             username=settings.get("USER") or None,
             password=settings.get("PASSWORD") or None,
             host=settings.get("HOST") or None,
@@ -40,7 +42,10 @@ def sa_engine(django_db_setup, django_db_blocker) -> Iterator[Engine]:  # type: 
         )
         engine = create_engine(url)
         with engine.begin() as conn:
-            conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}"))
+            if vendor == "postgresql":
+                conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}"))
+            else:
+                conn.execute(text(f"CREATE DATABASE IF NOT EXISTS {SCHEMA} CHARACTER SET utf8mb4"))
     else:
         engine = create_engine(
             "sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False}
@@ -48,6 +53,9 @@ def sa_engine(django_db_setup, django_db_blocker) -> Iterator[Engine]:  # type: 
     metadata.create_all(engine)
     yield engine
     metadata.drop_all(engine)
+    if vendor == "mysql":
+        with engine.begin() as conn:
+            conn.execute(text(f"DROP DATABASE IF EXISTS {SCHEMA}"))
     engine.dispose()
 
 

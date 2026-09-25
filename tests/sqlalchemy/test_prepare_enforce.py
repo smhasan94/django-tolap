@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 
 from sqlalchemy_tolap import EnforcementMode, TolapDenied, enforce
 from sqlalchemy_tolap.enforce import dialect_name
-from sqlalchemy_tolap.pushdown import NO_FIELDS_VISIBLE, prepare_select
+from sqlalchemy_tolap.pushdown import DIALECTS, NO_FIELDS_VISIBLE, prepare_select
 from tests.harness.contexts import signed
-from tests.harness.fixtures import effective_policy
+from tests.harness.fixtures import effective_policy, us_east_filter
 from tests.sqlalchemy.conftest import SIGNING_KEY
 from tests.sqlalchemy.models import Encounter, Patient, audit_log, patients
 from tests.test_enforce import ANALYST
@@ -42,11 +42,12 @@ def test_default_projection_drops_hidden(seeded: Session) -> None:
 
 
 def test_row_filter_pushed_and_limit(seeded: Session) -> None:
+    dialect = dialect_name(seeded)
     p = policy(
-        {"rowFilters": [{"field": "region", "operator": "equals", "value": "us-east"}]},
+        {"rowFilters": [us_east_filter(DIALECTS[dialect].string_equality)]},
         limits={"maxResults": 1},
     )
-    prep = prepare_select(select(Patient).order_by(Patient.id), p, dialect=dialect_name(seeded))
+    prep = prepare_select(select(Patient).order_by(Patient.id), p, dialect=dialect)
     assert prep.fully_pushed_down and "WHERE" in sql(prep) and "LIMIT" in sql(prep)
     assert [r["id"] for r in seeded.execute(prep.statement).mappings()] == [1]
 
@@ -168,15 +169,16 @@ def test_denials(seeded: Session) -> None:
 def test_aliased_root_pushes_onto_the_alias(seeded: Session) -> None:
     from sqlalchemy.orm import aliased
 
+    dialect = dialect_name(seeded)
     p = policy(
         {
             "fieldRules": {"hiddenFields": ["ssn"]},
-            "rowFilters": [{"field": "region", "operator": "equals", "value": "us-east"}],
+            "rowFilters": [us_east_filter(DIALECTS[dialect].string_equality)],
         },
         limits={"maxResults": 5},
     )
     a = aliased(Patient)
-    prep = prepare_select(select(a).order_by(a.id), p, dialect=dialect_name(seeded))
+    prep = prepare_select(select(a).order_by(a.id), p, dialect=dialect)
     text = sql(prep)
     assert (
         text.count("FROM") == 1

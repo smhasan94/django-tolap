@@ -192,7 +192,7 @@ reason; OpenAPI schema (drf-spectacular if installed, else DRF's) omits hidden f
 | E4-S2 | Realistic QuerySet corpus vs upstream rewriter | FR-14 | E1-S8 | done |
 | E4-S3 | `docs/gap-report.md` generator | FR-14 | E4-S2 | done |
 | E4-S4 | Upstream-`main` CI leg | FR-20 | E1-S1 | done |
-| E4-S5 | MySQL rules implemented, marked untested | FR-8 | E1-S6 | done (landed in E1-S6: `VENDORS["mysql"]`, per-vendor tests, README says untested) |
+| E4-S5 | MySQL rules implemented, marked untested | FR-8 | E1-S6 | done (landed in E1-S6: `VENDORS["mysql"]`, per-vendor tests). MySQL 8.4 CI leg added 2026-09-25 post-v0.1: suite, fixtures and property green; assignment key shrunk to fit InnoDB's 3072-byte limit (decision 2026-09-25). |
 
 **E4-S1.** AC: Hypothesis `ci` profile on the PostgreSQL job; strategies extended with
 policies filtering on `related.field` through a FK; differential holds.

@@ -29,6 +29,31 @@ DATABASE_URL=postgres://localhost/postgres HYPOTHESIS_PROFILE=ci uv run pytest -
 
 Django creates and drops a `test_*` database; nothing touches the named database itself.
 
+### MySQL
+
+The suite also runs on MySQL 8.4 in CI. Locally, a throwaway container is enough:
+
+```bash
+docker run -d --name tolap-mysql -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=tolap \
+  -p 3307:3306 mysql:8.4
+DATABASE_URL=mysql://root:root@127.0.0.1:3307/tolap uv run pytest -q
+```
+
+The driver is `mysqlclient`, which compiles against libmysqlclient. Debian/Ubuntu:
+`apt-get install default-libmysqlclient-dev pkg-config`. macOS: `brew install mysql-client`
+and, if `uv sync` fails to link (a universal2 Python or a mismatched Xcode), build with the
+Command Line Tools toolchain:
+
+```bash
+CLT=/Library/Developer/CommandLineTools
+CC=$CLT/usr/bin/clang LDSHARED="$CLT/usr/bin/clang -bundle -undefined dynamic_lookup" \
+SDKROOT=$CLT/SDKs/MacOSX.sdk ARCHFLAGS="-arch arm64" \
+PKG_CONFIG_PATH=/opt/homebrew/opt/mysql-client/lib/pkgconfig uv sync
+```
+
+The SQLAlchemy fixtures create and drop a second database, `test_tolap_sa`, on the same
+server.
+
 ### Other targets
 
 | Target | What it does |

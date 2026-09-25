@@ -273,7 +273,7 @@ pushdown but not the checks or the post pass, and returns the same rows.
 | --- | --- | --- |
 | PostgreSQL | CI | `like` pushed; string ordering left to post pass (collation) |
 | SQLite | CI | `like` left to post pass (case-insensitive `LIKE`) |
-| MySQL | not yet | string equality left to post pass (case-insensitive collations) |
+| MySQL 8.4 | CI | every string operator left to post pass (case-insensitive collations); integers, booleans and nulls pushed |
 
 `tolap-core` 1.0.0 from PyPI. Upstream `main` is tested separately.
 

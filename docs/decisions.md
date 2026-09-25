@@ -178,3 +178,52 @@ semantics), and it is narrowed to `maxResults` only when all filters were pushed
 than maxResults when more qualifying rows exist"; pushing it ahead of an unpushed filter
 breaks exactly that. Option 3 changes which rows are returned. The differential property is
 the arbiter and it now holds on both adapters and both databases.
+
+## 2026-09-25 — MySQL: assignment unique key shrunk to fit 3072 bytes
+
+**Question.** The first MySQL run of the suite failed in migration `0001`: the unique
+constraint on `PolicyAssignment` (`policy` 128 + `assignee_type` 32 + `assignee_identifier`
+255 + `tenant_id` 255 + `source_connection_id` 255 = 925 characters) is 3700 bytes under
+`utf8mb4`, over InnoDB's 3072-byte key limit. `django-tolap` 0.1.0 therefore cannot be
+installed on MySQL 8 (utf8mb4 default) or MariaDB. Fixing it changes a released schema.
+
+**Options.**
+1. `tenant_id` and `source_connection_id` 255 → 128 (key 2684 bytes); edit `0001` so fresh
+   installs work on MySQL and add `0002` (`AlterField`) so existing PostgreSQL/SQLite installs
+   converge on the same schema.
+2. Add `0002` only, leaving `0001` as released. Does not fix MySQL: `0001` still fails there.
+3. Keep the widths and put the unique constraint on a SHA-256 `scope_key` column.
+
+**Decision.** Option 1, released as 0.1.1. Upstream `tolap-core` places no length on tenant or
+connection ids; 128 characters covers every real identifier we have seen. Rows with longer
+values would block `0002`, which is the correct failure.
+
+**Rationale.** `0001` never succeeded on MySQL, so editing it cannot strand a MySQL install.
+For PostgreSQL and SQLite the end state after `0002` is identical whether `0001` ran at 255
+or 128. Option 3 hides the constraint from the admin's error messages and needs a data
+migration for no benefit.
+
+## 2026-09-25 — Differential harness: a limit under a non-total ORDER BY compares counts only
+
+**Question.** Hypothesis on MySQL found `SELECT id, full_name ... ORDER BY full_name` with
+`maxResults` returning different rows with pushdown than without: several rows share an
+empty `full_name`, and MySQL's `LIMIT` plan (priority-queue filesort) orders ties differently
+from the unlimited plan. SQL does not define the order among ties, so both are correct.
+
+**Decision.** `assert_differential` in both harnesses compares only the row count when a limit
+was pushed and the statement's `ORDER BY` does not include the primary key (`total_order`).
+Previously only the no-`ORDER BY` case was treated this way. The corpus keeps the
+`ORDER BY full_name` statements so the count check still runs on them.
+
+**Rationale.** The property is "pushdown never changes what the post pass returns"; among tied
+rows the post pass itself has no defined answer. Requiring a total order in the corpus
+would hide that real queries are written this way.
+
+## 2026-09-25 — MySQL test driver: mysqlclient
+
+**Decision.** The dev dependency for the MySQL leg is `mysqlclient`, Django's recommended
+driver and what users run, rather than pure-Python PyMySQL. CI installs
+`default-libmysqlclient-dev`; macOS needs `brew install mysql-client` and, when the Python is
+a universal2 build, the environment in `CONTRIBUTING.md`. The SQLAlchemy fixtures use
+`mysql+mysqldb` and a second throwaway database `test_tolap_sa`, since MySQL has no schemas
+below a database.

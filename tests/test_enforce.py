@@ -151,10 +151,13 @@ def test_annotations_survive_post_pass(seeded: None) -> None:
 
 
 def test_public_api_has_single_executing_entry_point() -> None:
-    """Only ``enforce`` executes a QuerySet; nothing public runs one without the post pass."""
+    """Only ``enforce``, ``enforce_sql`` and ``enforce_raw`` execute anything, each through the
+    post pass; nothing else public runs a query."""
     executing = {name for name in django_tolap.__all__ if callable(getattr(django_tolap, name))}
     assert executing == {
         "enforce",
+        "enforce_raw",
+        "enforce_sql",
         "EnforcementMode",
         "TolapDenied",
         "TolapSchemaMismatch",

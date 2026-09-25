@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### django-tolap
+
+- `enforce_sql(sql, params, context, model=...)` and `enforce_raw(Model.objects.raw(...),
+  context)`: the raw SQL paths. Upstream's `prepare_sql_query` rewrites the text; the wrapper
+  hands it only the row filters the QuerySet path's vendor rules accept (spelled as database
+  columns), pushes the limit only when every filter was pushed, leaves joins, subqueries and
+  set operations unrewritten, preserves `%s`/`%(name)s` placeholders and escapes pushed `%`
+  literals. Refuses non-`SELECT` statements and statements reading a different table than
+  `model`. Same differential proof, on every CI vendor.
+
 ## 0.1.1 — 2026-09-25 (django-tolap only)
 
 ### django-tolap

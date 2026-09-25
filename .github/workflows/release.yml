@@ -1,0 +1,87 @@
+name: Release
+
+# Push a tag named <package>-v<version>, for example django-tolap-v0.2.0 or
+# sqlalchemy-tolap-v0.1.1, on a commit whose pyproject already carries that version.
+# The job checks the suite, builds that one package, publishes it to PyPI through
+# trusted publishing (no token anywhere), then creates the GitHub release with the
+# artifacts and the matching CHANGELOG section as notes.
+
+on:
+  push:
+    tags:
+      - "django-tolap-v*"
+      - "sqlalchemy-tolap-v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      package: ${{ steps.meta.outputs.package }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+      - name: Parse the tag and check it against pyproject
+        id: meta
+        run: |
+          package="${GITHUB_REF_NAME%-v*}"
+          version="${GITHUB_REF_NAME##*-v}"
+          declared=$(python3 -c "import tomllib; print(tomllib.load(open('packages/$package/pyproject.toml','rb'))['project']['version'])")
+          if [ "$declared" != "$version" ]; then
+            echo "tag says $version but packages/$package/pyproject.toml says $declared" >&2
+            exit 1
+          fi
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - run: uv sync --frozen
+      - run: make lint
+      - run: make type
+      - run: make test
+      - run: uv build --package "${{ steps.meta.outputs.package }}"
+      - run: uv run --with twine twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Release notes from CHANGELOG
+        run: |
+          awk -v v="${{ needs.build.outputs.version }}" '
+            /^## / { on = ($2 == v) ; next }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "See CHANGELOG.md." > notes.md
+      - run: >-
+          gh release create "$GITHUB_REF_NAME"
+          --title "${{ needs.build.outputs.package }} ${{ needs.build.outputs.version }}"
+          --notes-file notes.md
+          dist/*

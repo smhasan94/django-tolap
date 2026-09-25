@@ -92,6 +92,24 @@ listed as such in the README compatibility table.
 
 Short imperative summary line, optional body explaining why. One logical change per commit.
 
+## Releasing
+
+Releases run from `.github/workflows/release.yml` through PyPI trusted publishing; no token
+is stored anywhere. Each package releases on its own:
+
+1. On `main`, bump `version` in `packages/<package>/pyproject.toml`, date the matching
+   `## <version>` heading in `CHANGELOG.md`, run `uv lock`, merge through a pull request.
+2. Tag that commit `<package>-v<version>` and push the tag:
+
+   ```bash
+   git tag -a django-tolap-v0.2.0 -m "django-tolap 0.2.0"
+   git push origin django-tolap-v0.2.0
+   ```
+
+The workflow refuses a tag whose version differs from the pyproject, runs lint, types and
+tests, builds only that package, checks it with twine, publishes it, and creates the GitHub
+release with the wheel, the sdist and the `CHANGELOG.md` section for that version as notes.
+
 ## Reporting bugs and proposing features
 
 Use the issue templates. For anything about the protocol itself (policy schema, resolution,

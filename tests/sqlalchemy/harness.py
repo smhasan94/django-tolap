@@ -21,6 +21,15 @@ def run(
     return prep, finalize(prep, rows, policy, None)
 
 
+def total_order(stmt: Any) -> bool:
+    """Whether the statement's ORDER BY includes a primary-key column, so ties cannot occur."""
+    for clause in stmt._order_by_clauses:
+        column = getattr(clause, "element", clause)  # unwrap desc()/asc()
+        if getattr(column, "primary_key", False):
+            return True
+    return False
+
+
 def canonical(rows: list[dict[str, Any]]) -> list[str]:
     return sorted(json.dumps(r, sort_keys=True, default=str) for r in rows)
 
@@ -30,10 +39,11 @@ def assert_differential(
 ) -> list[dict[str, Any]]:
     prep, left = run(stmt, policy, session, EnforcementMode.rewrite_and_post)
     _, right = run(stmt, policy, session, EnforcementMode.post_only)
-    if prep.max_results is not None and not stmt._order_by_clauses:
-        # A limit without ORDER BY picks database-chosen rows on either path; only the
+    if prep.max_results is not None and not total_order(stmt):
+        # A limit without a total ORDER BY picks database-chosen rows among ties on either
+        # path (MySQL demonstrably differs between the LIMIT and unlimited plans); only the
         # count is comparable.
-        assert len(left) == len(right), "limit without ordering changed the row count"
+        assert len(left) == len(right), "limit without total ordering changed the row count"
         return left
     assert canonical(left) == canonical(right), (
         f"pushdown changed the result\n  sql: {prep.statement}\n"

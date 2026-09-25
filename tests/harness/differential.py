@@ -38,6 +38,11 @@ def pushed(
     return run(queryset, policy, EnforcementMode.rewrite_and_post)
 
 
+def total_order(qs: QuerySet[Any]) -> bool:
+    """Whether the QuerySet's explicit ORDER BY includes the primary key, so ties cannot occur."""
+    return any(name.lstrip("-") in ("pk", "id") for name in qs.query.order_by)
+
+
 def _key(row: dict[str, Any]) -> str:
     return json.dumps(row, sort_keys=True, default=str)
 
@@ -53,10 +58,11 @@ def assert_differential(
     prep, left = pushed(queryset, policy)
     right = post_only(queryset, policy)
     qs = queryset.all() if isinstance(queryset, Manager) else queryset
-    if prep.max_results is not None and not qs.query.order_by and not qs.ordered:
-        # A limit without ORDER BY picks database-chosen rows on either path; only the
+    if prep.max_results is not None and not total_order(qs):
+        # A limit without a total ORDER BY picks database-chosen rows among ties on either
+        # path (MySQL demonstrably differs between the LIMIT and unlimited plans); only the
         # count is comparable.
-        assert len(left) == len(right), "limit without ordering changed the row count"
+        assert len(left) == len(right), "limit without total ordering changed the row count"
         return left
     assert canonical(left) == canonical(right), (
         f"pushdown changed the result\n  sql: {prep.queryset.query}\n"

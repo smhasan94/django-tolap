@@ -8,7 +8,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 
 | Epic | Title | Status |
 | --- | --- | --- |
-| E1 | QuerySet enforcement core (installable, demoable) | done |
+| E1 | QuerySet enforcement core (installable, demoable) | reviewed |
 | E2 | Django-model policy store, admin, contexts | todo |
 | E3 | Tool helper and DRF integration | todo |
 | E4 | Differential hardening and gap measurement | todo |
@@ -17,7 +17,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 
 ---
 
-## E1. QuerySet enforcement core — status: done
+## E1. QuerySet enforcement core — status: reviewed
 
 Outcome: `pip install git+…#subdirectory=packages/django-tolap`, then
 `enforce(Patient.objects.filter(...), context)` returns post-passed dicts with pushdown, on

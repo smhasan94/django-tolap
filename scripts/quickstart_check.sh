@@ -43,7 +43,7 @@ awk '/<!-- quickstart:start -->/{flag=1;next}/<!-- quickstart:end -->/{flag=0}fl
   | sed '/^```/d' > snippet.py
 python manage.py shell -c "exec(open('snippet.py').read())" | tee out.txt
 grep -q "'full_name': 'John Smith'" out.txt
-grep -qv "ssn" out.txt
-grep -qv "eu-west" out.txt
-grep -qv "john@example.com" out.txt
+! grep -q "ssn" out.txt
+! grep -q "eu-west" out.txt
+! grep -q "john@example.com" out.txt
 echo "quickstart OK"

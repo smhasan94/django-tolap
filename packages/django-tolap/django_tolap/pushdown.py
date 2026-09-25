@@ -103,17 +103,20 @@ def value_fits(kind: Kind, value: Any) -> bool:
     return False
 
 
-def resolve_field(rf: RowFilter, model: type[Model]) -> models.Field[Any, Any] | None:
-    """The concrete, non-relational field ``rf.field`` names on ``model``, if any.
+def resolve_field(
+    rf: RowFilter, model: type[Model], *, include_relations: bool = False
+) -> models.Field[Any, Any] | None:
+    """The concrete field ``rf.field`` names on ``model``, if any.
 
-    A name qualified with another object belongs to that object; a relation field's value
-    in ``.values()`` rows is an id under a different key, so it is left to the post pass.
+    A name qualified with another object belongs to that object. Relation fields are
+    excluded by default: their value in ``.values()`` rows is an id under a different key,
+    so a filter on one is left to the post pass (they are still projected for it).
     """
     qualifier, _, leaf = rf.field.rpartition(".")
     if qualifier and qualifier.lower() != object_name(model).lower():
         return None
     for field in model._meta.concrete_fields:
-        if field.name.lower() == leaf.lower() and not field.is_relation:
+        if field.name.lower() == leaf.lower() and (include_relations or not field.is_relation):
             return field
     return None
 
@@ -259,13 +262,8 @@ class Preparation:
 
 def _root_filter_field(rf: RowFilter, model: type[Model]) -> str | None:
     """Name of the root-model concrete field a row filter reads, for the projection."""
-    qualifier, _, leaf = rf.field.rpartition(".")
-    if qualifier and qualifier.lower() != object_name(model).lower():
-        return None
-    for field in model._meta.concrete_fields:
-        if field.name.lower() == leaf.lower():
-            return field.name
-    return None
+    field = resolve_field(rf, model, include_relations=True)
+    return field.name if field is not None else None
 
 
 def prepare_queryset(

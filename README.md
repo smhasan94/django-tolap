@@ -27,17 +27,23 @@ pass runs in both. The only difference is what the database is asked to produce.
 Analyst policy (`region = us-east`, `status <> deleted`, `maxResults 500`, SSN hidden, email
 hashed, name partially masked):
 
+| Mode (postgresql, 1,000,000 rows) | Rows fetched | Rows returned | Median wall time | Peak RSS delta |
+| --- | ---: | ---: | ---: | ---: |
 | `rewriteAndPost` | 500 | 500 | 18 ms | 1 MB |
 | `postOnly` | 1,000,000 | 500 | 6,323 ms | 1,207 MB |
 
 Auditor policy (all regions, `status <> deleted`, `maxResults 1000`, everything identifying
 redacted):
 
+| Mode (postgresql, 1,000,000 rows) | Rows fetched | Rows returned | Median wall time | Peak RSS delta |
+| --- | ---: | ---: | ---: | ---: |
 | `rewriteAndPost` | 1,000 | 1,000 | 41 ms | 3 MB |
 | `postOnly` | 1,000,000 | 1,000 | 39,179 ms | 2,192 MB |
 
 Analyst policy with the tool's own filter `full_name__icontains="smith"` on top:
 
+| Mode (postgresql, 1,000,000 rows) | Rows fetched | Rows returned | Median wall time | Peak RSS delta |
+| --- | ---: | ---: | ---: | ---: |
 | `rewriteAndPost` | 500 | 500 | 41 ms | 1 MB |
 | `postOnly` | 99,747 | 500 | 667 ms | 115 MB |
 

@@ -48,7 +48,7 @@ plugins = ["mypy_django_plugin.main"]
 mypy_path = ["packages/django-tolap"]
 
 [[tool.mypy.overrides]]
-module = ["tolap_core.*", "tolap_store.*"]
+module = ["tolap_core.*", "tolap_store.*", "rest_framework.*"]
 ignore_missing_imports = true
 
 [tool.django-stubs]

@@ -10,7 +10,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 | --- | --- | --- |
 | E1 | QuerySet enforcement core (installable, demoable) | reviewed |
 | E2 | Django-model policy store, admin, contexts | reviewed |
-| E3 | Tool helper and DRF integration | in progress |
+| E3 | Tool helper and DRF integration | done |
 | E4 | Differential hardening and gap measurement | todo |
 | E5 | Example app, benchmark, README, upstream issue | todo |
 | E6 | SQLAlchemy adapter | todo |
@@ -163,14 +163,14 @@ updated; time-to-first-value walkthrough measured under five minutes by the scri
 
 ---
 
-## E3. Tool helper and DRF integration — status: in progress
+## E3. Tool helper and DRF integration — status: done
 
 | Story | Title | FRs | Depends on | Status |
 | --- | --- | --- | --- | --- |
 | E3-S1 | `tolap_tool` decorator and `tolap_context` | FR-15 | E2-S6 | done |
 | E3-S2 | Interop test with upstream `tolap-mcp` wrapper | FR-15 | E3-S1 | done |
-| E3-S3 | DRF viewset and serializer mixins | FR-16 | E3-S1 | todo |
-| E3-S4 | DRF write-method refusal and schema hiding | FR-16 | E3-S3 | todo |
+| E3-S3 | DRF viewset and serializer mixins | FR-16 | E3-S1 | done |
+| E3-S4 | DRF write-method refusal and schema hiding | FR-16 | E3-S3 | done |
 
 **E3-S1.** AC: `ToolContext` with `.policy`, `.context`, `.enforce(qs)`, `.deny(reason)`;
 identity from kwargs or `TOLAP["IDENTITY"]` callable; missing identity denies;

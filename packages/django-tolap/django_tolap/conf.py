@@ -16,6 +16,7 @@ DEFAULTS: dict[str, Any] = {
     "HASH_SALT": None,
     "IDENTITY_RESOLVER": None,
     "IDENTITY": None,
+    "TENANT_RESOLVER": None,
     "OBJECT_NAME": "db_table",
     "CONTEXT_TTL": 3600,
     "SOURCE_PREFIX": None,

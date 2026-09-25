@@ -14,6 +14,7 @@ E001 = "django_tolap.E001"
 E002 = "django_tolap.E002"
 E003 = "django_tolap.E003"
 E004 = "django_tolap.E004"
+E005 = "django_tolap.E005"
 
 
 @register(Tags.security)
@@ -44,6 +45,18 @@ def check_tolap_settings(app_configs: Any, **kwargs: Any) -> list[CheckMessage]:
         except (ImportError, AttributeError, ValueError) as exc:
             messages.append(
                 Error(f"TOLAP['IDENTITY'] {identity!r} cannot be imported: {exc}", id=E004)
+            )
+
+    tenant_resolver = settings.TENANT_RESOLVER
+    if tenant_resolver is not None:
+        try:
+            import_string(tenant_resolver)
+        except (ImportError, AttributeError, ValueError) as exc:
+            messages.append(
+                Error(
+                    f"TOLAP['TENANT_RESOLVER'] {tenant_resolver!r} cannot be imported: {exc}",
+                    id=E005,
+                )
             )
 
     object_name = settings.OBJECT_NAME

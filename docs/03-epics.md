@@ -32,7 +32,7 @@ SQLite and PostgreSQL, proven equal to post-pass-only against upstream fixtures.
 | E1-S5 | Pre-execution checks | FR-7, FR-11 | E1-S4 | done |
 | E1-S6 | Row-filter compiler (vendor rules) | FR-8 | E1-S3, E1-S5 | done |
 | E1-S7 | Projection, limit, `Preparation` | FR-9, FR-10 | E1-S6 | done |
-| E1-S8 | `enforce()` with mandatory post pass | FR-12 | E1-S7 | todo |
+| E1-S8 | `enforce()` with mandatory post pass | FR-12 | E1-S7 | done |
 | E1-S9 | Differential suite: fixtures + Hypothesis on SQLite | FR-13 | E1-S8 | todo |
 | E1-S10 | PostgreSQL CI leg and `like` pushdown proof | FR-8, FR-13, FR-20 | E1-S9 | todo |
 | E1-S11 | README quickstart (in-code policy) | FR-1 | E1-S8 | todo |

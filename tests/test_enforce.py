@@ -159,6 +159,8 @@ def test_public_api_has_single_executing_entry_point() -> None:
         "TolapDenied",
         "TolapSchemaMismatch",
         "Uninspectable",
+        "accept_context",
+        "issue_context",
     }
 
 

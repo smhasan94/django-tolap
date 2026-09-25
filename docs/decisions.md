@@ -227,3 +227,13 @@ driver and what users run, rather than pure-Python PyMySQL. CI installs
 a universal2 build, the environment in `CONTRIBUTING.md`. The SQLAlchemy fixtures use
 `mysql+mysqldb` and a second throwaway database `test_tolap_sa`, since MySQL has no schemas
 below a database.
+
+## 2026-09-25 — Post-v0.1 work goes through branches and pull requests
+
+**Decision.** From this point each piece of work gets its own branch off `main` and a pull
+request; `main` is no longer committed to directly. Small logical commits, tests green before
+each, no AI attribution in commit messages or PR descriptions, as before. Direct commits to
+`main` up to this one predate the rule.
+
+**Rationale.** Both packages are released; a reviewable history per change matters more now
+than the speed of committing straight to `main`.

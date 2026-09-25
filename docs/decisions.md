@@ -278,3 +278,9 @@ hidden ``ssn`` would always be refused, even when the caller never touched ``ssn
 
 **Rationale.** The spec's write rule is fail closed and all-or-nothing; the default-value
 rule is the ORM analogue of a serializer body that simply does not mention the field.
+
+## 2026-09-25 — Back to direct commits on `main`
+
+**Decision.** After five pull requests (#1 to #5) the owner chose to merge work straight into
+`main` again. Same commit discipline as before: small logical commits, suite green before
+each, no AI attribution. Branches and PRs return when the owner asks.

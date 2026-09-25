@@ -257,3 +257,24 @@ package's `pyproject.toml` version and runs the suite before building.
 **Rationale.** Lockstep versions would publish no-op releases of the unchanged package.
 Trusted publishing removes the token lifecycle entirely; the `pypi` GitHub environment can
 carry a required-reviewer rule if the owner wants a manual gate.
+
+## 2026-09-25 — ORM writes: what an instance save "names"
+
+**Question.** Upstream ``validate_write`` refuses a payload that names a hidden or read-only
+field. A Django instance carries every column, so ``instance.save()`` on a model with a
+hidden ``ssn`` would always be refused, even when the caller never touched ``ssn``.
+
+**Decision.**
+- Insert: the payload is every concrete column whose value differs from the field's Django
+  default (``get_default()``: the declared default, else ``""`` or ``None`` as Django stores
+  it). A column left at its default is the database's to fill, not the caller's write.
+- Update with ``update_fields``: exactly those columns, validated as a partial write.
+- Update without ``update_fields``: every column, validated as a **full replace** with the
+  model's field list as ``resource_fields``, so a ``readOnlyFields`` column is protected even
+  when unchanged and a hidden column refuses the save. Callers name what they change.
+- Bulk ``update``/``delete``: refused as a whole when the QuerySet would touch a row the
+  policy filters out (count of enforced rows versus ``queryset.count()``), then each visible
+  row is validated. Never silently narrowed to the visible subset.
+
+**Rationale.** The spec's write rule is fail closed and all-or-nothing; the default-value
+rule is the ORM analogue of a serializer body that simply does not mention the field.

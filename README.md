@@ -180,6 +180,27 @@ derives them from the tool's own arguments, or from `TOLAP["IDENTITY"]`. A signe
 as-is. This composes with upstream's `tolap-mcp` wrapper: let it run `pre_execute` for the
 tool call and `django-tolap` enforce the query; see `tests/test_tool_mcp_interop.py`.
 
+## Writes
+
+```python
+from django_tolap import enforce_save, enforce_delete, enforce_update, enforce_queryset_delete
+
+enforce_save(patient, context, update_fields=["status"])   # insert when new, else update
+enforce_delete(patient, context)
+enforce_update(Patient.objects.filter(region="us-east"), context, status="archived")
+enforce_queryset_delete(Patient.objects.filter(status="deleted"), context)
+```
+
+Each runs upstream `validate_write`: the operation's permission and the `readOnly` ceiling,
+the object, every written field against hidden, read-only and allowed sets, and the row
+filters against the target row, which is read through `enforce` first. One unwritable
+field or one invisible row refuses the whole write; a bulk update or delete is refused if
+the QuerySet would touch a row the policy filters out. A save without `update_fields`
+overwrites every column and is validated as a full replace, so name the fields you change.
+On insert, a column left at its model default is the database's to fill, not a write.
+Nothing returns data; read the row back through `enforce`. `ToolContext` has `save`,
+`delete`, `update` and `delete_queryset` shortcuts.
+
 ## Raw SQL
 
 Tools that hand Django a SQL string get the same guarantees:

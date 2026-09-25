@@ -40,7 +40,6 @@ Regenerate the gap report with `DATABASE_URL=... make gap-report`.
   scenario fixtures are skipped until then; the upstream-`main` CI leg reports drift.
 - Projection of joined-table columns (`values("related__x")`, `select(Encounter.status)` next
   to a Patient root) is refused today; would need per-table object naming in rows.
-- ORM write-path validation for Django (`save()`/`delete()`); DRF writes are gated already.
 - drf-spectacular schema integration beyond serializer-field hiding.
 
 **Things to remember.**

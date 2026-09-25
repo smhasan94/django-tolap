@@ -156,8 +156,12 @@ def test_public_api_has_single_executing_entry_point() -> None:
     executing = {name for name in django_tolap.__all__ if callable(getattr(django_tolap, name))}
     assert executing == {
         "enforce",
+        "enforce_delete",
+        "enforce_queryset_delete",
         "enforce_raw",
+        "enforce_save",
         "enforce_sql",
+        "enforce_update",
         "EnforcementMode",
         "TolapDenied",
         "TolapSchemaMismatch",

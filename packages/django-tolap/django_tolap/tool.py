@@ -24,6 +24,12 @@ from django_tolap.contexts import issue_context
 from django_tolap.enforce import enforce, validate
 from django_tolap.exceptions import TolapDenied
 from django_tolap.pushdown import EnforcementMode
+from django_tolap.writes import (
+    enforce_delete,
+    enforce_queryset_delete,
+    enforce_save,
+    enforce_update,
+)
 
 Identity = Callable[..., tuple[str, str]]
 
@@ -45,6 +51,18 @@ class ToolContext:
         self, queryset: Any, *, mode: EnforcementMode | str = EnforcementMode.rewrite_and_post
     ) -> list[dict[str, Any]]:
         return enforce(queryset, self.context, mode=mode)
+
+    def save(self, instance: Any, *, update_fields: list[str] | None = None) -> None:
+        enforce_save(instance, self.context, update_fields=update_fields)
+
+    def delete(self, instance: Any) -> None:
+        enforce_delete(instance, self.context)
+
+    def update(self, queryset: Any, **values: Any) -> int:
+        return enforce_update(queryset, self.context, **values)
+
+    def delete_queryset(self, queryset: Any) -> int:
+        return enforce_queryset_delete(queryset, self.context)
 
     def deny(self, reason: str) -> NoReturn:
         raise TolapDenied(reason)

@@ -23,6 +23,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Topic :: Database",
   "Topic :: Security",
 ]
 dependencies = [
@@ -37,6 +38,7 @@ drf = ["djangorestframework>=3.16"]
 [project.urls]
 Homepage = "https://github.com/smhasan94/django-tolap"
 Issues = "https://github.com/smhasan94/django-tolap/issues"
+Changelog = "https://github.com/smhasan94/django-tolap/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["django_tolap"]

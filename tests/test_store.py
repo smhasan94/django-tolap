@@ -171,9 +171,21 @@ def test_django_groups_identity_resolver() -> None:
     user.groups.add(Group.objects.create(name="analysts"))
     resolver = DjangoGroupsIdentityResolver()
     assert resolver.get_groups(str(user.pk)) == ["analysts"]
-    assert resolver.get_groups("alice") == ["analysts"]
+    assert resolver.get_groups("alice") == []  # pk lookup never falls back to username
     assert resolver.get_groups("nobody") == [] and resolver.get_groups("999") == []
     assert resolver.get_roles("alice") == []
+    by_name = DjangoGroupsIdentityResolver(lookup="username")
+    assert by_name.get_groups("alice") == ["analysts"]
+    assert by_name.get_groups(str(user.pk)) == []
+    with pytest.raises(ValueError):
+        DjangoGroupsIdentityResolver(lookup="email")
+
+
+def test_numeric_username_never_resolves_to_another_users_pk() -> None:
+    other = get_user_model().objects.create_user(username="other", password="x")
+    other.groups.add(Group.objects.create(name="admins"))
+    get_user_model().objects.create_user(username=str(other.pk), password="x")
+    assert DjangoGroupsIdentityResolver(lookup="username").get_groups(str(other.pk)) == []
 
 
 def test_load_identity_resolver_from_settings(settings) -> None:  # type: ignore[no-untyped-def]

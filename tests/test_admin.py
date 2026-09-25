@@ -100,6 +100,58 @@ def test_drift_warnings_only_for_targeted_models() -> None:
     assert drift_warnings_for_body({"version": "1.0"}) == []
 
 
+def test_admin_saves_and_deletes_are_audited(admin_client) -> None:  # type: ignore[no-untyped-def]
+    admin_client.post(
+        reverse("admin:django_tolap_policydefinition_add"),
+        {"name": "", "body": json.dumps(VALID), "active": "on"},
+    )
+    definition = PolicyDefinition.objects.get()
+    admin_client.post(
+        reverse("admin:django_tolap_policyassignment_add"),
+        {
+            "policy": definition.name,  # FK uses to_field="name"
+            "assignee_type": "user",
+            "assignee_identifier": "alice",
+            "tenant_id": "",
+            "source_connection_id": "",
+            "active": "on",
+            "granted_by": "root",
+            "granted_at_0": "2026-01-01",
+            "granted_at_1": "00:00:00",
+            "reason": "demo",
+        },
+    )
+    assignment = PolicyAssignment.objects.get()
+    admin_client.post(
+        reverse("admin:django_tolap_policyassignment_delete", args=[assignment.pk]), {"post": "yes"}
+    )
+    admin_client.post(
+        reverse("admin:django_tolap_policydefinition_delete", args=[definition.pk]), {"post": "yes"}
+    )
+    events = list(PolicyAuditLog.objects.order_by("id").values_list("event_type", flat=True))
+    assert events == [
+        "definition_created",
+        "assignment_saved",
+        "assignment_deleted",
+        "definition_deleted",
+    ]
+    assert all(e.user_id for e in PolicyAuditLog.objects.all())
+
+
+def test_resolve_preview_reports_resolution_errors(admin_client, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from django_tolap import admin as admin_module
+
+    def boom(self, *a, **k):  # type: ignore[no-untyped-def]
+        raise ValueError("bad assignment")
+
+    monkeypatch.setattr(admin_module.DjangoPolicyStore, "resolve_policy", boom)
+    response = admin_client.post(
+        reverse("admin:django_tolap_resolve_preview"),
+        {"user_id": "alice", "tenant_id": "t", "source_connection_id": "db:x:y"},
+    )
+    assert response.status_code == 200 and b"resolution failed" in response.content
+
+
 def test_audit_log_is_read_only(admin_client) -> None:  # type: ignore[no-untyped-def]
     assert admin_client.get(reverse("admin:django_tolap_policyauditlog_add")).status_code == 403
 

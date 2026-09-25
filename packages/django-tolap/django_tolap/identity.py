@@ -14,14 +14,27 @@ from django_tolap.conf import settings
 class DjangoGroupsIdentityResolver:
     """Groups are the names of the user's Django ``Group``s; roles are empty.
 
-    ``user_id`` is the user's primary key as a string, or the username. An id that
-    matches no user resolves to no groups: unknown is not an error, it is "no memberships".
+    ``user_id`` is matched against exactly one field, ``lookup``: the primary key by default
+    (what :mod:`django_tolap.tool` and the DRF mixin send), or ``"username"`` for the
+    ``USERNAME_FIELD``. Never both: an all-digit username must not resolve to another
+    user's primary key. An id that matches no user resolves to no groups.
     """
+
+    def __init__(self, lookup: str = "pk") -> None:
+        if lookup not in ("pk", "username"):
+            raise ValueError("lookup must be 'pk' or 'username'")
+        self.lookup = lookup
 
     def get_groups(self, user_id: str) -> list[str]:
         user_model = get_user_model()
-        lookup = {"pk": user_id} if user_id.isdigit() else {user_model.USERNAME_FIELD: user_id}
-        user = user_model._default_manager.filter(**lookup).first()
+        if self.lookup == "pk":
+            if not user_id.isdigit():
+                return []
+            user = user_model._default_manager.filter(pk=int(user_id)).first()
+        else:
+            user = user_model._default_manager.filter(
+                **{user_model.USERNAME_FIELD: user_id}
+            ).first()
         if user is None:
             return []
         return [str(name) for name in user.groups.values_list("name", flat=True)]

@@ -29,8 +29,9 @@ from tolap_core import (
 )
 from tolap_store import IdentityResolver, PolicyAuditEvent
 
+from django_tolap.audit import assignment_event, definition_event, record
 from django_tolap.identity import load_identity_resolver
-from django_tolap.models import PolicyAssignment, PolicyAuditLog, PolicyDefinition
+from django_tolap.models import PolicyAssignment, PolicyDefinition
 
 if TYPE_CHECKING:
     from tolap_store import PolicyStore
@@ -51,17 +52,7 @@ class DjangoPolicyStore:
     # -- audit --
 
     def _emit(self, event: PolicyAuditEvent) -> None:
-        if self._audit_to_db:
-            PolicyAuditLog.objects.create(
-                event_type=event.event_type,
-                timestamp=datetime.fromisoformat(event.timestamp.replace("Z", "+00:00")),
-                details=event.details,
-                user_id=event.user_id,
-                policy_name=event.policy_name,
-                assignee_identifier=event.assignee_identifier,
-            )
-        if self._on_audit is not None:
-            self._on_audit(event)
+        record(event, to_db=self._audit_to_db, callback=self._on_audit)
 
     # -- definitions --
 
@@ -93,26 +84,14 @@ class DjangoPolicyStore:
                 existing.save()
                 row = existing
                 event = "definition_updated"
-            self._emit(
-                PolicyAuditEvent.create(
-                    event_type=event,
-                    details=f"Policy definition '{row.name}' {event.split('_')[1]}",
-                    policy_name=row.name,
-                )
-            )
+            self._emit(definition_event(row.name, event.split("_")[1]))
         return row
 
     def delete_definition(self, name: str) -> bool:
         with transaction.atomic():
             deleted, _ = PolicyDefinition.objects.filter(name=name).delete()
             if deleted:
-                self._emit(
-                    PolicyAuditEvent.create(
-                        event_type="definition_deleted",
-                        details=f"Policy definition '{name}' deleted",
-                        policy_name=name,
-                    )
-                )
+                self._emit(definition_event(name, "deleted"))
         return bool(deleted)
 
     # -- assignments --
@@ -150,15 +129,7 @@ class DjangoPolicyStore:
             ).delete()
             PolicyAssignment.from_upstream(assignment)
             self._emit(
-                PolicyAuditEvent.create(
-                    event_type="assignment_saved",
-                    details=(
-                        f"Assignment for policy '{assignment.policy_name}' to "
-                        f"'{assignment.assignee.identifier}' saved"
-                    ),
-                    policy_name=assignment.policy_name,
-                    assignee_identifier=assignment.assignee.identifier,
-                )
+                assignment_event(assignment.policy_name, assignment.assignee.identifier, "saved")
             )
 
     def delete_assignment(self, policy_name: str, assignee_identifier: str) -> bool:
@@ -167,17 +138,7 @@ class DjangoPolicyStore:
                 policy__name=policy_name, assignee_identifier=assignee_identifier
             ).delete()
             if deleted:
-                self._emit(
-                    PolicyAuditEvent.create(
-                        event_type="assignment_deleted",
-                        details=(
-                            f"Assignment for policy '{policy_name}' to "
-                            f"'{assignee_identifier}' deleted"
-                        ),
-                        policy_name=policy_name,
-                        assignee_identifier=assignee_identifier,
-                    )
-                )
+                self._emit(assignment_event(policy_name, assignee_identifier, "deleted"))
         return bool(deleted)
 
     def assign(
@@ -216,14 +177,7 @@ class DjangoPolicyStore:
                 reason=reason,
                 expires_at=expires_at,
             )
-            self._emit(
-                PolicyAuditEvent.create(
-                    event_type="assignment_saved",
-                    details=f"Assignment for policy '{policy_name}' to '{identifier}' saved",
-                    policy_name=policy_name,
-                    assignee_identifier=identifier,
-                )
-            )
+            self._emit(assignment_event(policy_name, identifier, "saved"))
         return row
 
     # -- resolution --

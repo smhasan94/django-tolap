@@ -11,10 +11,16 @@ from django.template.response import TemplateResponse
 from django.urls import path
 from tolap_core import serialize
 
+from django_tolap.audit import assignment_event, definition_event, record
 from django_tolap.drift import drift_warnings_for_body
 from django_tolap.forms import PolicyAssignmentForm, PolicyDefinitionForm, ResolvePreviewForm
 from django_tolap.models import PolicyAssignment, PolicyAuditLog, PolicyDefinition
 from django_tolap.store import DjangoPolicyStore
+
+
+def _actor(request: HttpRequest) -> str | None:
+    user = getattr(request, "user", None)
+    return str(user.pk) if user is not None and user.is_authenticated else None
 
 
 @admin.register(PolicyDefinition)
@@ -30,8 +36,21 @@ class PolicyDefinitionAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         self, request: HttpRequest, obj: PolicyDefinition, form: Any, change: bool
     ) -> None:
         super().save_model(request, obj, form, change)
+        record(
+            definition_event(obj.name, "updated" if change else "created", actor=_actor(request))
+        )
         for warning in drift_warnings_for_body(obj.body):
             messages.warning(request, f"Schema drift: {warning}")
+
+    def delete_model(self, request: HttpRequest, obj: PolicyDefinition) -> None:
+        super().delete_model(request, obj)
+        record(definition_event(obj.name, "deleted", actor=_actor(request)))
+
+    def delete_queryset(self, request: HttpRequest, queryset: Any) -> None:
+        names = list(queryset.values_list("name", flat=True))
+        super().delete_queryset(request, queryset)
+        for name in names:
+            record(definition_event(name, "deleted", actor=_actor(request)))
 
     def get_urls(self) -> list[Any]:
         custom = [
@@ -48,12 +67,16 @@ class PolicyDefinitionAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         effective = None
         if request.method == "POST" and form.is_valid():
             store = DjangoPolicyStore(audit_to_db=False)
-            policy = store.resolve_policy(
-                form.cleaned_data["user_id"],
-                form.cleaned_data["tenant_id"],
-                form.cleaned_data["source_connection_id"],
-            )
-            effective = json.dumps(json.loads(serialize(policy)), indent=2)
+            try:
+                policy = store.resolve_policy(
+                    form.cleaned_data["user_id"],
+                    form.cleaned_data["tenant_id"],
+                    form.cleaned_data["source_connection_id"],
+                )
+            except Exception as exc:  # noqa: BLE001 - shown to the admin, not swallowed
+                form.add_error(None, f"resolution failed: {exc!r}")
+            else:
+                effective = json.dumps(json.loads(serialize(policy)), indent=2)
         context = {**self.admin_site.each_context(request), "form": form, "effective": effective}
         return TemplateResponse(request, "admin/django_tolap/resolve_preview.html", context)
 
@@ -74,6 +97,30 @@ class PolicyAssignmentAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     list_filter = ("active", "assignee_type", "tenant_id")
     search_fields = ("policy__name", "assignee_identifier", "tenant_id", "source_connection_id")
     autocomplete_fields = ("policy",)
+
+    def save_model(
+        self, request: HttpRequest, obj: PolicyAssignment, form: Any, change: bool
+    ) -> None:
+        super().save_model(request, obj, form, change)
+        record(
+            assignment_event(
+                str(obj.policy_id), obj.assignee_identifier, "saved", actor=_actor(request)
+            )
+        )
+
+    def delete_model(self, request: HttpRequest, obj: PolicyAssignment) -> None:
+        super().delete_model(request, obj)
+        record(
+            assignment_event(
+                str(obj.policy_id), obj.assignee_identifier, "deleted", actor=_actor(request)
+            )
+        )
+
+    def delete_queryset(self, request: HttpRequest, queryset: Any) -> None:
+        keys = list(queryset.values_list("policy_id", "assignee_identifier"))
+        super().delete_queryset(request, queryset)
+        for policy_name, identifier in keys:
+            record(assignment_event(str(policy_name), identifier, "deleted", actor=_actor(request)))
 
 
 @admin.register(PolicyAuditLog)

@@ -72,7 +72,10 @@ server.
 2. **Fail closed.** Anything the adapter cannot translate faithfully is left to TOLAP's
    post-execution pass and reported in `Preparation.unpushable_filters`. Never emit a looser
    SQL filter, never narrow a projection silently, never skip the post pass.
-3. **Green `make check`.** Lint, types and tests pass before a commit.
+3. **Green `make check`.** Lint, types and tests pass before a commit. `make test` measures
+   line and branch coverage of both packages and fails under 90% (`[tool.coverage.report]`
+   in `pyproject.toml`); every CI leg clears that on its own, so vendor-specific code needs a
+   test on its vendor, not a skip.
 4. **A decision record** in `docs/decisions.md` when a change picks between semantically
    different options (a new vendor rule, a new refusal, a changed default). Date, question,
    options, decision, rationale.

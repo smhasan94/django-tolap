@@ -175,3 +175,20 @@ def test_resolve_preview(admin_client) -> None:  # type: ignore[no-untyped-def]
     assert "&quot;maxResults&quot;: 42" in text and "&quot;sourceProfiles&quot;" in text
     assert "analyst" in text
     assert not PolicyAuditLog.objects.filter(event_type="policy_resolved").exists()
+
+
+def test_admin_bulk_delete_action_audits_every_definition(admin_client) -> None:  # type: ignore[no-untyped-def]
+    names = ["bulk-a", "bulk-b"]
+    for name in names:
+        PolicyDefinition.from_body({**VALID, "name": name})
+    admin_client.post(
+        reverse("admin:django_tolap_policydefinition_changelist"),
+        {
+            "action": "delete_selected",
+            "_selected_action": list(PolicyDefinition.objects.values_list("pk", flat=True)),
+            "post": "yes",
+        },
+    )
+    assert not PolicyDefinition.objects.exists()
+    deleted = PolicyAuditLog.objects.filter(event_type="definition_deleted")
+    assert sorted(deleted.values_list("policy_name", flat=True)) == names

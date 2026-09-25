@@ -31,6 +31,7 @@ dev = [
   "djangorestframework>=3.16",
   "tolap-mcp>=1.0,<2",
   "mysqlclient>=2.2",
+  "pytest-cov>=6",
 ]
 
 [tool.ruff]
@@ -68,3 +69,14 @@ DJANGO_SETTINGS_MODULE = "tests.settings"
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-p no:cacheprovider"
+
+[tool.coverage.run]
+source = ["django_tolap", "sqlalchemy_tolap"]
+branch = true
+
+[tool.coverage.report]
+# Every CI leg (SQLite, PostgreSQL, MySQL) must clear this on its own; the SQLite leg sits
+# at 96% lines. Vendor-only code (the PostgreSQL ``like`` lookup) is why it is not higher.
+fail_under = 90
+show_missing = true
+skip_covered = true

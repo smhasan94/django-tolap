@@ -47,3 +47,13 @@ def test_callable_object_name_ok() -> None:
 def test_unknown_setting_attribute() -> None:
     with pytest.raises(AttributeError):
         _ = settings.NOPE
+
+
+@override_settings(TOLAP={"SIGNING_KEY": "k", "IDENTITY": "nope.missing"})
+def test_bad_identity_e004() -> None:
+    assert "django_tolap.E004" in _ids()
+
+
+@override_settings(TOLAP={"SIGNING_KEY": "k", "TENANT_RESOLVER": "nope.missing"})
+def test_bad_tenant_resolver_e005() -> None:
+    assert "django_tolap.E005" in _ids()

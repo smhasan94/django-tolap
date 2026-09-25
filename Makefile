@@ -14,8 +14,8 @@ fmt:
 type:
 	uv run mypy
 
-test:
-	uv run pytest -q
+test:  ## with line+branch coverage; fails under the floor in pyproject [tool.coverage.report]
+	uv run pytest -q --cov --cov-report=term
 
 gap-report:
 	PYTHONPATH=. uv run python -m tests.gap.report > docs/gap-report.md.tmp && mv docs/gap-report.md.tmp docs/gap-report.md

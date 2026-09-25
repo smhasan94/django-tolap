@@ -1,51 +1,55 @@
-# Status (saved 2026-09-25)
+# Status (saved 2026-09-25, end of day)
 
-**Where we are.** All six epics implemented and reviewed (`docs/03-epics.md`). v0.1.0 is
-prepared, not published: versions bumped, `CHANGELOG.md` written, wheels build with
-`uv build --all-packages` and pass `twine check` with LICENSE and NOTICE inside. Publish
-polish done 2026-09-25: badges, `CONTRIBUTING.md`, `SECURITY.md`, issue and PR templates,
-PyPI-facing package READMEs. Repo is public with private vulnerability reporting on;
-CI green on every leg.
+**Where we are.** v0.1 complete and released; post-v0.1 backlog in progress. Both packages
+on PyPI: `django-tolap` 0.1.1 (tag `v0.1.1`), `sqlalchemy-tolap` 0.1.0 (tag `v0.1.0`).
+Repo public, private vulnerability reporting on, trusted publishing configured (PyPI
+publishers and the `pypi` GitHub environment exist). Upstream issue posted:
+https://github.com/awslabs/tolap/issues/31, no maintainer reply yet. CI green on every leg
+(SQLite matrix, PostgreSQL, MySQL 8.4, quickstart, upstream-main) with a 90% line-and-branch
+coverage floor; all legs sit at 96%.
 
-Upstream issue posted 2026-09-25: https://github.com/awslabs/tolap/issues/31.
+**Unreleased on `main` (django-tolap, see `CHANGELOG.md` "Unreleased").**
+- `enforce_sql` / `enforce_raw`: raw SQL paths with our vendor rules over upstream's rewriter.
+- `manage.py tolap_resolve`: effective policy, assignments, or a signed context from the shell.
+- `enforce_save` / `enforce_delete` / `enforce_update` / `enforce_queryset_delete` and the
+  `ToolContext` shortcuts: ORM write paths through upstream `validate_write`.
+- `values("related__field")` projections accepted; joined columns keyed as `object.field`
+  for the post pass. Gap report: 48 of 48 corpus pairs prepare.
+- `__version__` from package metadata.
 
-**Released.** `django-tolap` and `sqlalchemy-tolap` 0.1.0 published to PyPI 2026-09-25,
-tagged `v0.1.0`. Fresh-venv install and import verified. Commit history rewritten the same
-day to use the GitHub noreply email; `CLAUDE.md` untracked.
+Release it as `django-tolap` 0.2.0 when ready: bump `version` in
+`packages/django-tolap/pyproject.toml`, date the changelog heading, `uv lock`, commit, then
+`git tag -a django-tolap-v0.2.0 -m "django-tolap 0.2.0" && git push origin django-tolap-v0.2.0`.
+The release workflow does the rest (`CONTRIBUTING.md` "Releasing"). The workflow has not run
+for real yet; watch its first run.
 
-**Since 0.1.0.** MySQL 8.4 CI leg added 2026-09-25; it exposed that 0.1.0's assignment unique
-key cannot be created on MySQL, fixed by migration `0002` (see `CHANGELOG.md`, unreleased
-0.1.1). Local MySQL for the suite: `docker run -d --name tolap-mysql -e MYSQL_ROOT_PASSWORD=root
--e MYSQL_DATABASE=tolap -p 3307:3306 mysql:8.4`, then
-`DATABASE_URL=mysql://root:root@127.0.0.1:3307/tolap uv run pytest -q`.
-
-**Released.** `django-tolap` 0.1.1 on PyPI 2026-09-25, tagged `v0.1.1`, fresh install verified
-with migration `0002` present. `sqlalchemy-tolap` stays at 0.1.0.
-
-**Waiting on the owner.** Configure trusted publishing once (decision 2026-09-25, "Releases
-through tags"): on PyPI, for each of `django-tolap` and `sqlalchemy-tolap`, Manage →
-Publishing → add a GitHub publisher with owner `smhasan94`, repository `django-tolap`, workflow
-`release.yml`, environment `pypi`. On GitHub, Settings → Environments → create `pypi`
-(optionally with yourself as required reviewer). Then the next release is a tag push, see
-`CONTRIBUTING.md` "Releasing". Next release: create project-scoped PyPI tokens
-or set up trusted publishing before uploading.
+**Workflow.** Direct commits on `main` (owner's call after PRs #1 to #5). Branches and PRs
+return when the owner asks.
 
 **How to resume.** `uv sync && make check` (SQLite). PostgreSQL:
-`DATABASE_URL=postgres://localhost/postgres HYPOTHESIS_PROFILE=ci uv run pytest -q`
-(local Homebrew PostgreSQL 17, binaries at `/opt/homebrew/opt/postgresql@17/bin`).
-Regenerate the gap report with `DATABASE_URL=... make gap-report`.
+`DATABASE_URL=postgres://localhost/postgres HYPOTHESIS_PROFILE=ci make test` (Homebrew
+PostgreSQL 17, binaries at `/opt/homebrew/opt/postgresql@17/bin`). MySQL: start Docker
+Desktop, `docker run -d --name tolap-mysql -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=tolap
+-p 3307:3306 mysql:8.4` (or `docker start tolap-mysql` if it still exists), then
+`DATABASE_URL=mysql://root:root@127.0.0.1:3307/tolap HYPOTHESIS_PROFILE=ci make test`.
+`mysqlclient` needs the Command Line Tools toolchain on this Mac; env in `CONTRIBUTING.md`.
+Regenerate the gap report with `DATABASE_URL=<postgres> make gap-report`.
 
-**Backlog (post-v0.1, in rough priority order).**
+**Backlog (in rough priority order).**
+- drf-spectacular schema integration beyond serializer-field hiding (~1 day).
+- SQLAlchemy: projecting a non-root entity or column (`select(Patient.id, Encounter.status)`)
+  is still refused; Django's `values("related__x")` landed by presenting joined keys as
+  `object.field` to the post pass. SQLAlchemy row keys collide (`status` twice) without
+  labels, so it needs a labelling rule first (~1 day).
 - Purpose binding, delegation chains, judge: when `tolap-core` 1.1 reaches PyPI. Four merge
   scenario fixtures are skipped until then; the upstream-`main` CI leg reports drift.
-- SQLAlchemy: projecting a non-root entity or column (`select(Patient.id, Encounter.status)`)
-  is still refused; Django's `values("related__x")` landed 2026-09-25 by presenting joined
-  keys as `object.field` to the post pass. The SQLAlchemy row keys collide (`status` twice)
-  without labels, so it needs a labelling rule first.
-- drf-spectacular schema integration beyond serializer-field hiding.
+- Reply on awslabs/tolap#31 when a maintainer answers.
 
 **Things to remember.**
 - Never run scripts against the configured `DATABASE_URL` directly; use Django's test
   database setup (`tests/gap/report.py`) or a throwaway `createdb`.
 - The Bash tool wrapper ignores `set -e`; chain with `&&`.
 - Upstream fixtures are pinned to commit `e5c92107…` (`tests/fixtures/upstream/SOURCE`).
+- Upstream's field matcher lets a bare or table-wildcard rule (`encounters.*`) match any
+  object's leaf key, by design; over-masks, never under-masks.
+- `CLAUDE.md` is untracked on purpose; it is still the project brief.

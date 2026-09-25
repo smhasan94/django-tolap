@@ -1,4 +1,4 @@
-.PHONY: check lint type test fmt
+.PHONY: check lint type test fmt gap-report
 
 check: lint type test
 
@@ -16,3 +16,6 @@ type:
 
 test:
 	uv run pytest -q
+
+gap-report:
+	PYTHONPATH=. uv run python -m tests.gap.report > docs/gap-report.md

@@ -9,8 +9,8 @@
 Hi TOLAP team,
 
 Thanks for open-sourcing TOLAP. I have been building data-layer adapters for it and would like
-to ask whether you would link to them from the integrations list, or host them under
-`awslabs`.
+to ask whether you would mention them alongside the integration examples in your README, or
+host them under `awslabs`.
 
 ## What they are
 
@@ -82,6 +82,6 @@ in 18 ms with pushdown versus 1,000,000 rows in 6.3 s and about 1.2 GB peak memo
 
 ## The ask
 
-Would you link the adapters from the integrations list, or prefer to host them (I would
+Would you mention the adapters alongside the integration examples, or prefer to host them (I would
 transfer or contribute them under Apache-2.0 either way)? Happy to align naming, structure or
 test conventions with whatever you prefer.

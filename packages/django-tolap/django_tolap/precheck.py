@@ -6,8 +6,8 @@ Order, and the reason string each produces:
 2. root object denied                          -> upstream ``validate_access`` reason
 3. any joined/subquery object denied           -> upstream ``validate_access`` reason
 4. policy names a field the root model lacks   -> ``policy references unknown field: <name>``
-5. query references a hidden/non-allowed field -> ``query references fields you do not have
-                                                   permission to access`` (upstream text)
+5. query references a hidden/non-allowed field -> ``denied fields: <qualified names>``
+                                                   (upstream wrapper text)
 6. an annotation is computed from a masked     -> ``annotation exposes masked field: <name>``
    field
 
@@ -29,7 +29,7 @@ from django_tolap.matching import field_matches, is_pattern
 from django_tolap.objects import object_name
 
 UNKNOWN_FIELD = "policy references unknown field: {name}"
-FIELD_DENIED = "query references fields you do not have permission to access"
+FIELD_DENIED = "denied fields: {names}"
 MASKED_ANNOTATION = "annotation exposes masked field: {name}"
 CANNOT_INSPECT = "query cannot be inspected: {why}"
 
@@ -51,6 +51,10 @@ class FieldRules:
             masked=tuple(m.field for m in (fr.masked_fields or ())) if fr else (),
             filtered=tuple(f.field for f in (rules.row_filters or ())) if rules else (),
         )
+
+
+def field_denied(names: list[str]) -> str:
+    return FIELD_DENIED.format(names=", ".join(names))
 
 
 def qualified(ref: FieldRef) -> str:
@@ -114,9 +118,11 @@ def precheck_inspection(ins: Inspection, policy: EffectivePolicy) -> AccessResul
     if unknown:
         return AccessResult(allowed=False, reason=UNKNOWN_FIELD.format(name=unknown[0]))
 
-    for ref in sorted(ins.referenced):
-        if not field_visible(rules, qualified(ref)):
-            return AccessResult(allowed=False, reason=FIELD_DENIED)
+    denied = sorted(
+        qualified(ref) for ref in ins.referenced if not field_visible(rules, qualified(ref))
+    )
+    if denied:
+        return AccessResult(allowed=False, reason=field_denied(denied))
 
     for name, sources in sorted(ins.annotations.items()):
         for ref in sorted(sources):

@@ -8,7 +8,6 @@ from django.db.models.functions import Upper
 
 from django_tolap.precheck import (
     CANNOT_INSPECT,
-    FIELD_DENIED,
     MASKED_ANNOTATION,
     UNKNOWN_FIELD,
     precheck,
@@ -75,17 +74,14 @@ def test_hidden_field_referenced_anywhere_denies() -> None:
         Patient.objects.values("id", "ssn"),
         Patient.objects.annotate(u=Upper("ssn")).values("id", "u"),
     ):
-        assert precheck(qs, p).reason == FIELD_DENIED
+        assert precheck(qs, p).reason.startswith("denied fields:")
     assert precheck(Patient.objects.values("id", "region"), p).allowed
 
 
 def test_qualified_and_bare_forms_both_match() -> None:
-    assert (
-        precheck(
-            Patient.objects.values("ssn"), policy(fieldRules={"hiddenFields": ["patients.ssn"]})
-        ).reason
-        == FIELD_DENIED
-    )
+    assert precheck(
+        Patient.objects.values("ssn"), policy(fieldRules={"hiddenFields": ["patients.ssn"]})
+    ).reason.startswith("denied fields:")
     assert precheck(
         Patient.objects.values("id"), policy(fieldRules={"allowedFields": ["patients.id"]})
     ).allowed
@@ -97,26 +93,27 @@ def test_qualified_and_bare_forms_both_match() -> None:
 def test_allowed_fields_restricts_references() -> None:
     p = policy(fieldRules={"allowedFields": ["id", "region"]})
     assert precheck(Patient.objects.values("id", "region"), p).allowed
-    assert precheck(Patient.objects.values("id", "region").order_by("email"), p).reason == (
-        FIELD_DENIED
+    assert precheck(Patient.objects.values("id", "region").order_by("email"), p).reason.startswith(
+        "denied fields:"
     )
     assert precheck(Patient.objects.all(), p).allowed
 
 
 def test_empty_allowed_fields_denies_every_reference() -> None:
-    assert (
-        precheck(Patient.objects.values("id"), policy(fieldRules={"allowedFields": []})).reason
-        == FIELD_DENIED
-    )
+    assert precheck(
+        Patient.objects.values("id"), policy(fieldRules={"allowedFields": []})
+    ).reason.startswith("denied fields:")
 
 
 def test_hidden_joined_field() -> None:
     p = policy(fieldRules={"hiddenFields": ["encounters.status"]})
-    assert precheck(Patient.objects.filter(encounters__status="x"), p).reason == FIELD_DENIED
+    assert precheck(Patient.objects.filter(encounters__status="x"), p).reason.startswith(
+        "denied fields:"
+    )
     # Upstream's post-pass matcher drops the qualifier on both sides (connector spec
     # section 3.2), so "encounters.status" also strips a bare "status" key from patient
     # rows. The pre-check agrees with the boundary rather than being looser than it.
-    assert precheck(Patient.objects.filter(status="x"), p).reason == FIELD_DENIED
+    assert precheck(Patient.objects.filter(status="x"), p).reason.startswith("denied fields:")
     assert precheck(Patient.objects.filter(region="x").values("id", "region"), p).allowed
 
 

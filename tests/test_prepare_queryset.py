@@ -4,7 +4,6 @@ import pytest
 from django.db import connection
 from django.db.models import Count
 
-from django_tolap.precheck import FIELD_DENIED
 from django_tolap.pushdown import NO_FIELDS_VISIBLE, prepare_queryset
 from tests.harness.fixtures import effective_policy
 from tests.testapp.models import Patient
@@ -77,7 +76,7 @@ def test_caller_projection_is_intersected_not_widened(seeded: None) -> None:
 def test_caller_projection_naming_hidden_field_is_denied(seeded: None) -> None:
     p = policy({"fieldRules": {"hiddenFields": ["ssn"]}})
     prep = prepare_queryset(Patient.objects.values("id", "ssn"), p)
-    assert not prep.allowed and prep.denial_reason == FIELD_DENIED
+    assert not prep.allowed and prep.denial_reason.startswith("denied fields:")
 
 
 def test_allowed_fields_projection(seeded: None) -> None:
@@ -89,7 +88,7 @@ def test_allowed_fields_projection(seeded: None) -> None:
 def test_empty_allowed_fields_denies(seeded: None) -> None:
     p = policy({"fieldRules": {"allowedFields": []}})
     prep = prepare_queryset(Patient.objects.values("id"), p)
-    assert prep.denial_reason == FIELD_DENIED
+    assert prep.denial_reason.startswith("denied fields:")
     # A pattern allow-list that matches nothing on this model: precheck passes for a
     # query referencing nothing visible? No -- every query references its projection.
     # The "no fields visible" reason is reachable only when the projection is empty

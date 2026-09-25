@@ -95,7 +95,7 @@ def test_denials_carry_reason_only(seeded: None) -> None:
     ctx = signed(effective_policy(ANALYST))
     with pytest.raises(TolapDenied) as exc:
         enforce(Patient.objects.values("id", "ssn"), ctx)
-    assert exc.value.reason == "query references fields you do not have permission to access"
+    assert exc.value.reason == "denied fields: patients.ssn"
     assert "John" not in str(exc.value)
 
 

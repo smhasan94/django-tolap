@@ -57,3 +57,24 @@ class AuditLog(models.Model):
 
     class Meta:
         db_table = "audit_log"
+
+
+class PharmacyOrder(models.Model):
+    """Exists only so the ``unlisted-table-denied`` scenario has a model to query."""
+
+    drug = models.TextField()
+
+    class Meta:
+        db_table = "pharmacy_orders"
+
+
+class CorpusRecord(models.Model):
+    """Rows for ``fixtures/enforcement/apply-row-filters-all-operators.json``."""
+
+    id = models.CharField(primary_key=True, max_length=16)
+    score = models.IntegerField(null=True)
+    region = models.TextField(null=True)
+    name = models.TextField(null=True)
+
+    class Meta:
+        db_table = "records"

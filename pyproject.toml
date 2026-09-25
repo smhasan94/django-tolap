@@ -25,6 +25,7 @@ dev = [
   "django-stubs[compatible-mypy]>=5.1",
   "psycopg[binary]>=3.2",
   "dj-database-url>=2.3",
+  "jsonschema>=4.23",
 ]
 
 [tool.ruff]

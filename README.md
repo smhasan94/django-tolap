@@ -178,6 +178,26 @@ derives them from the tool's own arguments, or from `TOLAP["IDENTITY"]`. A signe
 as-is. This composes with upstream's `tolap-mcp` wrapper: let it run `pre_execute` for the
 tool call and `django-tolap` enforce the query; see `tests/test_tool_mcp_interop.py`.
 
+## Raw SQL
+
+Tools that hand Django a SQL string get the same guarantees:
+
+```python
+from django_tolap import enforce_raw, enforce_sql
+
+rows = enforce_raw(Patient.objects.raw("SELECT * FROM patients WHERE status = %s", ["active"]), context)
+rows = enforce_sql("SELECT id, full_name FROM patients WHERE status = %s", ["active"], context, model=Patient)
+```
+
+Upstream's string rewriter does the text edits; `django-tolap` decides what it may push, with
+the same vendor rules as the QuerySet path, and always runs the post pass. `model` names the
+table the statement reads and supplies the column types the rules need. Only single-table
+`SELECT`s are rewritten: joins, comma `FROM` lists, subqueries and set operations still get
+every check and the post pass, but nothing is pushed, because upstream injects unqualified
+column names. `%s` and `%(name)s` placeholders are preserved; a pushed `LIKE 'J%'` is escaped
+so Django's parameter interpolation leaves it alone. Rows come back as dicts, never model
+instances.
+
 ## In Django REST Framework
 
 ```python

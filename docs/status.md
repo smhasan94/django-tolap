@@ -33,8 +33,6 @@ Regenerate the gap report with `DATABASE_URL=... make gap-report`.
 **Backlog (post-v0.1, in rough priority order).**
 - Purpose binding, delegation chains, judge: when `tolap-core` 1.1 reaches PyPI. Four merge
   scenario fixtures are skipped until then; the upstream-`main` CI leg reports drift.
-- Thin wrappers for `Manager.raw()` / cursor paths over upstream's string rewriter
-  (decision 2026-09-25 item 5).
 - `tolap_resolve` management command.
 - Projection of joined-table columns (`values("related__x")`, `select(Encounter.status)` next
   to a Patient root) is refused today; would need per-table object naming in rows.

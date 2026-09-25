@@ -4,6 +4,10 @@
 
 ### django-tolap
 
+- `manage.py tolap_resolve USER [--tenant T] [--source S]` prints the effective policy a user
+  resolves to as JSON; `--assignments` adds the assignments considered, `--context [--ttl N]`
+  prints a signed serialized context instead, `--audit` records the resolution (off by
+  default, a preview is not a grant).
 - `enforce_sql(sql, params, context, model=...)` and `enforce_raw(Model.objects.raw(...),
   context)`: the raw SQL paths. Upstream's `prepare_sql_query` rewrites the text; the wrapper
   hands it only the row filters the QuerySet path's vendor rules accept (spelled as database

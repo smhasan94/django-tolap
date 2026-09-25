@@ -18,8 +18,45 @@ masked, how many results. `django-tolap` brings that to Django:
 - **A tool decorator and DRF mixins** that resolve, sign, verify and enforce per call, and
   compose with upstream's own `tolap-mcp` wrapper.
 
-Status: **v0.1 in progress.** Epics 1 (QuerySet enforcement), 2 (store, admin, contexts)
-and 3 (tool helper, DRF) are done. See [`docs/03-epics.md`](docs/03-epics.md).
+## Why pushdown
+
+Same tool, same policy, same 1,000,000-row `patients` table on PostgreSQL 17 (Apple M-series
+laptop, `examples/clinic`, `manage.py benchmark`). Both modes return identical rows; the post
+pass runs in both. The only difference is what the database is asked to produce.
+
+Analyst policy (`region = us-east`, `status <> deleted`, `maxResults 500`, SSN hidden, email
+hashed, name partially masked):
+
+| `rewriteAndPost` | 500 | 500 | 18 ms | 1 MB |
+| `postOnly` | 1,000,000 | 500 | 6,323 ms | 1,207 MB |
+
+Auditor policy (all regions, `status <> deleted`, `maxResults 1000`, everything identifying
+redacted):
+
+| `rewriteAndPost` | 1,000 | 1,000 | 41 ms | 3 MB |
+| `postOnly` | 1,000,000 | 1,000 | 39,179 ms | 2,192 MB |
+
+Analyst policy with the tool's own filter `full_name__icontains="smith"` on top:
+
+| `rewriteAndPost` | 500 | 500 | 41 ms | 1 MB |
+| `postOnly` | 99,747 | 500 | 667 ms | 115 MB |
+
+The SQL the analyst query sent with pushdown:
+
+```sql
+SELECT "patients"."id", "patients"."full_name", "patients"."email", "patients"."region",
+       "patients"."status", "patients"."score"
+FROM "patients"
+WHERE ("patients"."region" = 'us-east' AND NOT ("patients"."status" = 'deleted'))
+ORDER BY 1 ASC LIMIT 500
+```
+
+Without it: `SELECT ... FROM "patients" ORDER BY 1 ASC`, a million rows into Python, then
+TOLAP keeps 500. `ssn` is not in either statement.
+
+Status: **v0.1 in progress.** Epics 1 to 5 done (enforcement, store and admin, tool and DRF,
+differential hardening, example and benchmark); the SQLAlchemy adapter is next. See
+[`docs/03-epics.md`](docs/03-epics.md).
 
 ## Install
 
@@ -161,6 +198,19 @@ docs list "an ORM that owns its own SQL" as the case where you fall back to post
 `django-tolap` is that missing piece: it works on the QuerySet, so joins, annotations,
 subqueries and Django's parameter handling stay Django's, and the rewrite is a `Q`, not a
 regex.
+
+Measured on 48 (QuerySet, policy) pairs from a corpus of realistic QuerySets
+([`docs/gap-report.md`](docs/gap-report.md), regenerated in CI):
+
+| Handing `str(qs.query)` to upstream's rewriter | Count |
+| --- | ---: |
+| Refused (Django names every column, so a hidden column anywhere on the model refuses the query) | 18 |
+| Rewritten | 30 |
+| Rewritten SQL executes as-is (`str(query)` interpolates parameters unquoted) | 16 |
+| django-tolap prepares the same QuerySet | 46 |
+
+None of that is a defect in upstream, which was never built for ORM-rendered SQL. It is the
+gap.
 
 Where a filter has no faithful ORM form on your database (`contains`, `startsWith`,
 `matches` everywhere; `like` on SQLite; string ordering on PostgreSQL), it is left to the

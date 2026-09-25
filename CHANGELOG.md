@@ -14,14 +14,19 @@
   means no policy and an unchanged serializer (`TolapViewSetMixin.tolap_policy_or_none()`).
   `TolapSerializerMixin` now hides by the column a field reads (`source`) and by the owning
   serializer's `Meta.model`.
-- **Fix, fail-open:** a row filter spelled other than the root field it reads
-  (`patients.region`, `REGION`) could be evaluated against a joined column of the same name
-  when `values("encounters__region", ...)` put that column before the root field in the
-  row: upstream's post pass looks the filter's field up by exact key first, then by a
-  bare-name match over the row's keys in order. Each such filter field is now copied into the
-  row under its own spelling before the post pass, so the exact lookup always hits, and
-  stripped after. Projection keys containing a dot are refused. The property test now gives
-  every encounter a region other than its patient's, which is what catches this class.
+- **Fix, fail-open:** with a joined column in the row (`values("encounters__region", ...)`),
+  a row filter could be evaluated against the wrong object's column of the same name:
+  upstream's post pass looks a filter's field up by exact key first, then by a bare-name
+  match over the row's keys in order, so `patients.region` could read the encounter's region
+  and `Encounters.Region` the patient's. Every row filter is now resolved to exactly one
+  column of the result before the post pass (bare and root-qualified names to the root,
+  other qualifiers to the joined column, case-insensitively) and copied into the row under
+  the filter's own spelling so the exact lookup always hits; the copies are stripped after.
+  A filter on a joined object whose column is not in the result is refused (`row filter
+  field not in result`); a filter on an object outside the query is left to upstream.
+  Projection keys containing a dot, and annotations named like a root field in any case,
+  are refused. The property test now gives every encounter a region other than its
+  patient's, which is what catches this class.
 - `values("related__field")` projections are accepted. The joined column is pre-checked
   against its own object's hidden and allowed fields, presented to the post pass as
   `object.field` so that object's masking rules apply, and returned under the caller's key.
@@ -52,10 +57,11 @@
   applies, and returned under the caller's key. A projection key used twice, or named like a
   root column other than itself (compared case-insensitively), or containing a dot, is
   refused with `label it`, since the row key would collide with a root column the post pass
-  may need. A row filter spelled other than the root column it reads is copied into the row
-  under its own spelling before the post pass (see the django-tolap fix above), so a joined
-  column of the same name can never answer for it. Same differential proof, on every CI
-  vendor, with encounter regions that differ from their patient's.
+  may need. Row filters are resolved to exactly one column of the result before the post
+  pass and copied under the filter's own spelling (see the django-tolap fix above), so a
+  column of another table can never answer for them; a filter on a joined table whose
+  column is not in the result is refused. Same differential proof, on every CI vendor, with
+  encounter regions that differ from their patient's.
 
 ## 0.1.1 — 2026-09-25 (django-tolap only)
 

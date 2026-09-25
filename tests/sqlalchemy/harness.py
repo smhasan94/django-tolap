@@ -37,6 +37,15 @@ def canonical(rows: list[dict[str, Any]]) -> list[str]:
 def assert_differential(
     stmt: Any, policy: EffectivePolicy, session: Session
 ) -> list[dict[str, Any]]:
+    dialect = dialect_name(session)
+    denials = [
+        prepare_select(stmt, policy, dialect=dialect, mode=mode).denial_reason
+        for mode in EnforcementMode
+    ]
+    if any(denials):
+        # A denial is part of the property: both modes must refuse with the same reason.
+        assert denials[0] == denials[1], f"modes disagree on denial: {denials}"
+        return []
     prep, left = run(stmt, policy, session, EnforcementMode.rewrite_and_post)
     _, right = run(stmt, policy, session, EnforcementMode.post_only)
     if prep.max_results is not None and not total_order(stmt):

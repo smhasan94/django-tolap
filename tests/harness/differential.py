@@ -54,7 +54,15 @@ def canonical(rows: list[dict[str, Any]]) -> list[str]:
 def assert_differential(
     queryset: QuerySet[Any] | Manager[Any], policy: EffectivePolicy
 ) -> list[dict[str, Any]]:
-    """Assert both modes agree; return the pushed-path rows for further assertions."""
+    """Assert both modes agree; return the pushed-path rows for further assertions.
+
+    A denial is part of the property: both modes must refuse with the same reason."""
+    denials = [
+        prepare_queryset(queryset, policy, mode=mode).denial_reason for mode in EnforcementMode
+    ]
+    if any(denials):
+        assert denials[0] == denials[1], f"modes disagree on denial: {denials}"
+        return []
     prep, left = pushed(queryset, policy)
     right = post_only(queryset, policy)
     qs = queryset.all() if isinstance(queryset, Manager) else queryset

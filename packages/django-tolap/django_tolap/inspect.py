@@ -183,6 +183,14 @@ def _projection(
 ) -> tuple[tuple[str, ...] | None, dict[str, FieldRef]]:
     root = _root_model(query)
     concrete = {f.name for f in root._meta.concrete_fields}
+    lowered = {n.lower() for n in concrete}
+    for name in query.annotation_select:
+        if "." in name:
+            # Qualified keys are what the post pass sees joined columns under.
+            raise Uninspectable(f"projection key {name!r} contains a dot")
+        if name.lower() in lowered:
+            # Django refuses the exact name; upstream's matching is case-insensitive.
+            raise Uninspectable(f"annotation {name!r} shadows a field of {root._meta.label}")
     fields = getattr(qs, "_fields", None)
     joined: dict[str, FieldRef] = {}
     if fields is not None:
@@ -191,9 +199,6 @@ def _projection(
         names: list[str] = []
         extra = [a for a in query.annotation_select if a not in fields]
         for name in (*fields, *extra):
-            if "." in name:
-                # Qualified keys are what the post pass sees joined columns under.
-                raise Uninspectable(f"projection key {name!r} contains a dot")
             if name in query.annotations:
                 names.append(name)
             elif name == "pk":

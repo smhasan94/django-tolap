@@ -37,7 +37,7 @@ from django.db.models import Manager, Model, Q
 from tolap_core import EffectivePolicy, FilterOperator, RowFilter, apply_result_pipeline
 
 from django_tolap.exceptions import Uninspectable
-from django_tolap.inspect import inspect
+from django_tolap.inspect import Inspection, inspect
 from django_tolap.objects import object_name
 from django_tolap.precheck import CANNOT_INSPECT, FieldRules, field_visible, precheck_inspection
 
@@ -213,6 +213,7 @@ _ORDERING = {
 # -- Preparing a whole QuerySet --
 
 NO_FIELDS_VISIBLE = "no fields visible"
+FILTER_NOT_IN_RESULT = "row filter field not in result: {field}"
 
 
 class EnforcementMode(Enum):
@@ -252,9 +253,10 @@ class Preparation:
     """Joined projection keys (``patient__email``) and the ``object.field`` name the post
     pass sees them under (``patients.email``), so its rules match the right object."""
     filter_keys: dict[str, str] = dataclass_field(default_factory=dict)
-    """Row-filter fields spelled other than the root field they read (``patients.region``,
-    ``REGION``) and that field. Each is copied into the row under the filter's own spelling
-    so upstream's exact lookup hits and its bare-name fallback never reads another object's
+    """Row-filter fields and the caller key of the field each one reads, for every filter
+    whose spelling is not already a key of that field (``patients.region``, ``REGION``,
+    ``Encounters.Region``). Each is copied into the row under the filter's own spelling so
+    upstream's exact lookup hits and its bare-name fallback never reads another object's
     field of the same name; stripped after the post pass."""
     max_results: int | None = None
     mode: EnforcementMode = EnforcementMode.rewrite_and_post
@@ -272,6 +274,48 @@ def _root_filter_field(rf: RowFilter, model: type[Model]) -> str | None:
     """Name of the root-model concrete field a row filter reads, for the projection."""
     field = resolve_field(rf, model, include_relations=True)
     return field.name if field is not None else None
+
+
+def _filter_fields(
+    ins: Inspection, root: type[Model], row_filters: list[RowFilter], base: list[str]
+) -> tuple[list[str], dict[str, str], str | None]:
+    """Resolve every row filter to exactly one field of the result, for the post pass.
+
+    Returns the root fields to project only for filters (``extra``), the exact key to copy
+    each filter's field under when the filter is spelled otherwise (``filter_keys``), or a
+    denial: a filter on a joined object whose field is not in the result cannot be
+    evaluated, and upstream's bare-name fallback would read another object's field. A
+    filter on an object outside the query is left to upstream's own lookup.
+    """
+    objects = {object_name(m).lower() for m in ins.models}
+    extra: list[str] = []
+    keys: dict[str, str] = {}
+    for rf in row_filters:
+        qualifier, _, leaf = rf.field.rpartition(".")
+        name = _root_filter_field(rf, root)
+        if name is not None:
+            if rf.field in base:
+                continue  # the caller's own key for that field (no shadow can reach here)
+            if name not in base and name not in extra:
+                extra.append(name)
+            if rf.field != name:
+                keys[rf.field] = name
+            continue
+        if not qualifier or qualifier.lower() not in objects:
+            continue
+        if qualifier.lower() == object_name(root).lower():
+            continue
+        matches = [
+            key
+            for key, ref in ins.joined.items()
+            if object_name(ref.model).lower() == qualifier.lower()
+            and ref.name.lower() == leaf.lower()
+        ]
+        if not matches:
+            return extra, keys, FILTER_NOT_IN_RESULT.format(field=rf.field)
+        if rf.field not in matches:
+            keys[rf.field] = matches[0]
+    return extra, keys, None
 
 
 def prepare_queryset(
@@ -324,16 +368,9 @@ def prepare_queryset(
         return Preparation.denied(NO_FIELDS_VISIBLE)
 
     row_filters = list(policy.object_rules.row_filters or ()) if policy.object_rules else []
-    extra: list[str] = []
-    filter_keys: dict[str, str] = {}
-    for rf in row_filters:
-        name = _root_filter_field(rf, root)
-        if name is None:
-            continue
-        if name not in base and name not in extra:
-            extra.append(name)
-        if rf.field != name:
-            filter_keys[rf.field] = name
+    extra, filter_keys, denial = _filter_fields(ins, root, row_filters, base)
+    if denial is not None:
+        return Preparation.denied(denial)
     projection = (*base, *extra)
 
     vendor = connections[qs.db].vendor
@@ -391,18 +428,23 @@ def finalize(
     Joined columns are presented to the pipeline as ``object.field`` so a rule on that
     object matches them, and handed back under the key the caller asked for.
     """
-    if prep.filter_keys:
-        rows = [{**row, **{k: row[c] for k, c in prep.filter_keys.items()}} for row in rows]
-    if prep.key_map:
-        rows = [{prep.key_map.get(k, k): v for k, v in row.items()} for row in rows]
+    key_map, filter_keys = prep.key_map, prep.filter_keys
+    if key_map or filter_keys:
+        rows = [
+            {
+                **{key_map.get(k, k): v for k, v in row.items()},
+                **{k: row[c] for k, c in filter_keys.items()},
+            }
+            for row in rows
+        ]
     result: list[dict[str, Any]] = apply_result_pipeline(rows, policy, hash_salt)
-    if prep.key_map:
-        back = {v: k for k, v in prep.key_map.items()}
-        result = [{back.get(k, k): v for k, v in row.items()} for row in result]
-    drop = set(prep.extra_fields) | set(prep.filter_keys)
-    if not drop:
+    back = {v: k for k, v in key_map.items()}
+    drop = set(prep.extra_fields) | set(filter_keys)
+    if not back and not drop:
         return result
-    return [{k: v for k, v in row.items() if k not in drop} for row in result]
+    return [
+        {back.get(k, k): v for k, v in row.items() if k in back or k not in drop} for row in result
+    ]
 
 
 def _reslice(qs: Any, low: int, high: int) -> Any:

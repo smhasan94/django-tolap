@@ -297,3 +297,32 @@ def test_qualified_root_filter_is_not_intercepted_by_a_renamed_key(seeded: Sessi
         assert rows and {r["id"] for r in rows} <= {1, 3}
         assert all(set(r) == {"er", "id"} for r in rows)
     assert results[0] == results[1]
+
+    # A filter on the joined table, however spelled, reads the joined column.
+    joined = policy(
+        {"rowFilters": [{"field": "Encounters.Region", "operator": "equals", "value": "us-east"}]}
+    )
+    results = [
+        enforce(stmt, signed(joined), seeded, signing_key=SIGNING_KEY, mode=mode)
+        for mode in EnforcementMode
+    ]
+    assert results[0] == results[1]
+    assert all(r["er"] == "us-east" for r in results[0]) and 5 in {r["id"] for r in results[0]}
+    assert 1 in {r["id"] for r in results[0]}  # patient 1 keeps its seeded us-east encounter
+
+    # A filter on a joined table whose column is not in the result cannot be evaluated.
+    from sqlalchemy_tolap.pushdown import FILTER_NOT_IN_RESULT
+
+    bare = select(Patient.id, Encounter.occurred_at).join(Encounter)
+    prep = prepare_select(bare, joined, dialect=dialect_name(seeded))
+    assert not prep.allowed
+    assert prep.denial_reason == FILTER_NOT_IN_RESULT.format(field="Encounters.Region")
+    # A filter on a table outside the query is left to upstream's lookup.
+    assert prepare_select(select(Patient.id), joined, dialect=dialect_name(seeded)).allowed
+
+
+def test_callers_own_key_for_a_filtered_column_is_kept(seeded: Session) -> None:
+    p = policy({"rowFilters": [{"field": "REGION", "operator": "equals", "value": "us-east"}]})
+    stmt = select(Patient.id, Patient.region.label("REGION")).order_by(Patient.id)
+    rows = enforce(stmt, signed(p), seeded, signing_key=SIGNING_KEY)
+    assert rows == [{"id": 1, "REGION": "us-east"}, {"id": 3, "REGION": "us-east"}]

@@ -275,4 +275,45 @@ def test_qualified_root_filter_is_not_intercepted_by_a_joined_key(seeded: None) 
     results = [enforce(qs, signed(p), mode=mode) for mode in EnforcementMode]
     for rows in results:
         assert rows and {r["id"] for r in rows} <= {1, 3}
+        assert all(set(r) == {"encounters__region", "id"} for r in rows)
     assert results[0] == results[1]
+
+    # A filter on the joined object, however spelled, reads the joined column.
+    from django_tolap.pushdown import FILTER_NOT_IN_RESULT, prepare_queryset
+
+    joined = effective_policy(
+        {
+            "permissions": {"canQuery": True},
+            "objectRules": {
+                "rowFilters": [
+                    {"field": "Encounters.Region", "operator": "equals", "value": "us-east"}
+                ]
+            },
+        }
+    )
+    results = [enforce(qs, signed(joined), mode=mode) for mode in EnforcementMode]
+    assert results[0] == results[1]
+    ids = {r["id"] for r in results[0]}
+    assert all(r["encounters__region"] == "us-east" for r in results[0]) and {1, 5} <= ids
+    # A filter on a joined object whose field is not in the result cannot be evaluated.
+    denied = prepare_queryset(Patient.objects.values("id", "encounters__occurred_at"), joined)
+    assert denied.denial_reason == FILTER_NOT_IN_RESULT.format(field="Encounters.Region")
+    # A filter on an object outside the query is left to upstream's lookup.
+    assert prepare_queryset(Patient.objects.values("id"), joined).allowed
+
+
+def test_callers_own_key_for_a_filtered_field_is_kept(seeded: None) -> None:
+    from django.db.models import F
+
+    p = effective_policy(
+        {
+            "permissions": {"canQuery": True},
+            "objectRules": {
+                "rowFilters": [{"field": "REGION", "operator": "equals", "value": "us-east"}]
+            },
+        }
+    )
+    with pytest.raises(TolapDenied):  # an annotation shadowing a field, whatever its case
+        enforce(Patient.objects.annotate(REGION=F("region")).values("id", "REGION"), signed(p))
+    rows = enforce(Patient.objects.values("id", "region").order_by("id"), signed(p))
+    assert rows == [{"id": 1, "region": "us-east"}, {"id": 3, "region": "us-east"}]

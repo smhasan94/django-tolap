@@ -21,7 +21,7 @@ from sqlalchemy.sql.selectable import Select
 from tolap_core import EffectivePolicy, FilterOperator, RowFilter, apply_result_pipeline
 
 from sqlalchemy_tolap.exceptions import Uninspectable
-from sqlalchemy_tolap.inspect import inspect
+from sqlalchemy_tolap.inspect import Inspection, inspect
 from sqlalchemy_tolap.precheck import CANNOT_INSPECT, precheck_inspection
 from sqlalchemy_tolap.rules import FieldRules, field_visible
 
@@ -194,6 +194,7 @@ def compile_filter(
 
 
 NO_FIELDS_VISIBLE = "no fields visible"
+FILTER_NOT_IN_RESULT = "row filter field not in result: {field}"
 
 
 @dataclass
@@ -211,9 +212,10 @@ class Preparation:
     """Caller keys of joined or labelled columns and the ``table.column`` name the post pass
     sees them under, so that table's rules match them."""
     filter_keys: dict[str, str] = dataclass_field(default_factory=dict)
-    """Row-filter fields spelled other than the root column they read (``patients.region``,
-    ``REGION``) and that column. Each is copied into the row under the filter's own spelling
-    so upstream's exact lookup hits and its bare-name fallback never reads another table's
+    """Row-filter fields and the caller key of the column each one reads, for every filter
+    whose spelling is not already a key of that column (``patients.region``, ``REGION``,
+    ``Encounters.Region``). Each is copied into the row under the filter's own spelling so
+    upstream's exact lookup hits and its bare-name fallback never reads another table's
     column of the same name; stripped after the post pass."""
     max_results: int | None = None
     mode: EnforcementMode = EnforcementMode.rewrite_and_post
@@ -225,6 +227,49 @@ class Preparation:
     @classmethod
     def denied(cls, reason: str) -> Preparation:
         return cls(allowed=False, statement=None, denial_reason=reason)
+
+
+def _filter_columns(
+    ins: Inspection, root: Table, row_filters: list[RowFilter], names: list[str]
+) -> tuple[list[str], dict[str, str], str | None]:
+    """Resolve every row filter to exactly one column of the result, for the post pass.
+
+    Returns the root columns to project only for filters (``extra``), the exact key to copy
+    each filter's column under when the filter is spelled otherwise (``filter_keys``), or a
+    denial: a filter on a joined table whose column is not in the result cannot be
+    evaluated, and upstream's bare-name fallback would read another table's column.
+    A filter on a table outside the query is left to upstream's own lookup.
+    """
+    tables = {name.lower() for name in ins.tables}
+    extra: list[str] = []
+    keys: dict[str, str] = {}
+    for rf in row_filters:
+        qualifier, _, leaf = rf.field.rpartition(".")
+        col = resolve_column(rf, root)
+        if col is not None:
+            if rf.field in names:
+                continue  # the caller's own key for that column (no shadow can reach here)
+            if col.name not in names and col.name not in extra:
+                extra.append(col.name)
+            if rf.field != col.name:
+                keys[rf.field] = col.name
+            continue
+        if (
+            not qualifier
+            or qualifier.lower() not in tables
+            or qualifier.lower() == root.name.lower()
+        ):
+            continue
+        matches = [
+            key
+            for key, ref in ins.renamed.items()
+            if ref.table.lower() == qualifier.lower() and ref.name.lower() == leaf.lower()
+        ]
+        if not matches:
+            return extra, keys, FILTER_NOT_IN_RESULT.format(field=rf.field)
+        if rf.field not in matches:
+            keys[rf.field] = matches[0]
+    return extra, keys, None
 
 
 def prepare_select(
@@ -262,16 +307,9 @@ def prepare_select(
         return Preparation.denied(NO_FIELDS_VISIBLE)
 
     row_filters = list(policy.object_rules.row_filters or ()) if policy.object_rules else []
-    extra: list[str] = []
-    filter_keys: dict[str, str] = {}
-    for rf in row_filters:
-        col = resolve_column(rf, root)
-        if col is None:
-            continue
-        if col.name not in names and col.name not in extra:
-            extra.append(col.name)
-        if rf.field != col.name:
-            filter_keys[rf.field] = col.name
+    extra, filter_keys, denial = _filter_columns(ins, root, row_filters, names)
+    if denial is not None:
+        return Preparation.denied(denial)
     for name in extra:
         base.append(by_name[name])
 
@@ -326,15 +364,30 @@ def finalize(
     Joined and labelled columns are presented to the pipeline as ``table.column`` so that
     table's rules match them, and handed back under the caller's key.
     """
-    if prep.filter_keys:
-        rows = [{**row, **{k: row[c] for k, c in prep.filter_keys.items()}} for row in rows]
-    if prep.key_map:
-        rows = [{prep.key_map.get(k, k): v for k, v in row.items()} for row in rows]
+    return _post_pass(prep.key_map, prep.filter_keys, prep.extra_fields, rows, policy, hash_salt)
+
+
+def _post_pass(
+    key_map: dict[str, str],
+    filter_keys: dict[str, str],
+    extra_fields: tuple[str, ...],
+    rows: list[dict[str, Any]],
+    policy: EffectivePolicy,
+    hash_salt: str | bytes | None,
+) -> list[dict[str, Any]]:
+    if key_map or filter_keys:
+        rows = [
+            {
+                **{key_map.get(k, k): v for k, v in row.items()},
+                **{k: row[c] for k, c in filter_keys.items()},
+            }
+            for row in rows
+        ]
     result: list[dict[str, Any]] = apply_result_pipeline(rows, policy, hash_salt)
-    if prep.key_map:
-        back = {v: k for k, v in prep.key_map.items()}
-        result = [{back.get(k, k): v for k, v in row.items()} for row in result]
-    drop = set(prep.extra_fields) | set(prep.filter_keys)
-    if not drop:
+    back = {v: k for k, v in key_map.items()}
+    drop = set(extra_fields) | set(filter_keys)
+    if not back and not drop:
         return result
-    return [{k: v for k, v in row.items() if k not in drop} for row in result]
+    return [
+        {back.get(k, k): v for k, v in row.items() if k in back or k not in drop} for row in result
+    ]

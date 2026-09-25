@@ -62,6 +62,7 @@ jobs:
         with:
           python-version: "3.13"
       - run: scripts/quickstart_check.sh
+      - run: ROWS=100000 make demo
 
   upstream-main:
     # Installs tolap-core/tolap-store/tolap-mcp from upstream main instead of PyPI 1.0.0

@@ -1,4 +1,4 @@
-.PHONY: check lint type test fmt gap-report
+.PHONY: check lint type test fmt gap-report demo
 
 check: lint type test
 
@@ -19,3 +19,8 @@ test:
 
 gap-report:
 	PYTHONPATH=. uv run python -m tests.gap.report > docs/gap-report.md.tmp && mv docs/gap-report.md.tmp docs/gap-report.md
+
+demo:  ## seed the example app on SQLite and run the benchmark
+	cd examples/clinic && rm -f clinic.sqlite3 && PYTHONPATH=. uv run python manage.py migrate -v 0 \
+	  && PYTHONPATH=. uv run python manage.py seed_patients --rows $${ROWS:-100000} \
+	  && PYTHONPATH=. uv run python manage.py benchmark --user alice --markdown

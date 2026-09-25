@@ -275,8 +275,9 @@ def test_qualified_root_filter_is_not_intercepted_by_a_renamed_key(seeded: Sessi
     seeded.execute(
         insert(encounters),
         [
-            {"patient_id": 1, "occurred_at": when, "region": "us-west", "status": "x"},
-            {"patient_id": 5, "occurred_at": when, "region": "us-east", "status": "x"},
+            # Explicit ids: the seed sets ids too, so the sequence is behind on PostgreSQL.
+            {"id": 901, "patient_id": 1, "occurred_at": when, "region": "us-west", "status": "x"},
+            {"id": 902, "patient_id": 5, "occurred_at": when, "region": "us-east", "status": "x"},
         ],
     )
     p = policy(

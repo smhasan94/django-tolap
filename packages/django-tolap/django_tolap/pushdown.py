@@ -29,11 +29,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
+from enum import Enum
 from typing import Any, Literal
 
 from django.db import connections, models
 from django.db.models import Manager, Model, Q
-from tolap_core import EffectivePolicy, FilterOperator, RowFilter
+from tolap_core import EffectivePolicy, FilterOperator, RowFilter, apply_result_pipeline
 
 from django_tolap.exceptions import Uninspectable
 from django_tolap.inspect import inspect
@@ -211,6 +212,21 @@ _ORDERING = {
 NO_FIELDS_VISIBLE = "no fields visible"
 
 
+class EnforcementMode(Enum):
+    """Where the policy is applied, mirroring upstream ``SqlEnforcementMode`` (spec section 4).
+
+    Both modes return the same rows; the post-execution pipeline runs in both. The mode
+    decides only how much data the database produces. There is deliberately no mode that
+    skips the post pass.
+    """
+
+    #: Push row filters, the result limit and the projection into the QuerySet. Default.
+    rewrite_and_post = "rewriteAndPost"
+    #: Leave filters and limit to the post pass; only the projection is applied (rows must
+    #: be dicts for the pipeline, and hidden columns need not be fetched to be stripped).
+    post_only = "postOnly"
+
+
 @dataclass
 class Preparation:
     """The outcome of :func:`prepare_queryset`.
@@ -227,7 +243,10 @@ class Preparation:
     pushed_filters: list[RowFilter] = dataclass_field(default_factory=list)
     visible_fields: tuple[str, ...] = ()
     projection: tuple[str, ...] = ()
+    extra_fields: tuple[str, ...] = ()
+    """Fields projected only so the post pass can evaluate a row filter; stripped after."""
     max_results: int | None = None
+    mode: EnforcementMode = EnforcementMode.rewrite_and_post
 
     @property
     def fully_pushed_down(self) -> bool:
@@ -249,8 +268,17 @@ def _root_filter_field(rf: RowFilter, model: type[Model]) -> str | None:
     return None
 
 
-def prepare_queryset(queryset: Any, policy: EffectivePolicy) -> Preparation:
+def prepare_queryset(
+    queryset: Any,
+    policy: EffectivePolicy,
+    *,
+    mode: EnforcementMode | str = EnforcementMode.rewrite_and_post,
+) -> Preparation:
     """Pre-check, then push row filters, projection and limit into a copy of ``queryset``.
+
+    In :attr:`EnforcementMode.post_only` the pre-checks and the projection still apply
+    (declining to rewrite never relaxes a denial) but no row filter or limit is pushed and
+    every row filter is reported unpushable, as upstream requires.
 
     Steps: :func:`precheck_inspection`; compute the visible projection (concrete fields minus
     hidden, intersected with ``allowedFields`` and with the caller's own projection); keep
@@ -262,6 +290,7 @@ def prepare_queryset(queryset: Any, policy: EffectivePolicy) -> Preparation:
     filtering before the offset would change which rows the window covers), so its row
     filters are all reported unpushable; only the projection and a narrower limit apply.
     """
+    resolved_mode = EnforcementMode(mode) if isinstance(mode, str) else mode
     qs = queryset.all() if isinstance(queryset, Manager) else queryset
     try:
         ins = inspect(qs)
@@ -287,19 +316,21 @@ def prepare_queryset(queryset: Any, policy: EffectivePolicy) -> Preparation:
         return Preparation.denied(NO_FIELDS_VISIBLE)
 
     row_filters = list(policy.object_rules.row_filters or ()) if policy.object_rules else []
+    extra: list[str] = []
     for rf in row_filters:
         name = _root_filter_field(rf, root)
-        if name is not None and name not in base:
-            base.append(name)
-    projection = tuple(base)
+        if name is not None and name not in base and name not in extra:
+            extra.append(name)
+    projection = (*base, *extra)
 
     vendor = connections[qs.db].vendor
     sliced = ins.low_mark != 0 or ins.high_mark is not None
+    push = resolved_mode is EnforcementMode.rewrite_and_post and not sliced
     pushed: list[RowFilter] = []
     unpushable: list[RowFilter] = []
     prepared = qs
     for rf in row_filters:
-        q = None if sliced else compile_filter(rf, root, vendor)
+        q = compile_filter(rf, root, vendor) if push else None
         if q is None:
             unpushable.append(rf)
         else:
@@ -309,7 +340,7 @@ def prepare_queryset(queryset: Any, policy: EffectivePolicy) -> Preparation:
     prepared = prepared.values(*projection, *annotation_names)
 
     max_results = policy.limits.max_results if policy.limits else None
-    if max_results is not None:
+    if max_results is not None and resolved_mode is EnforcementMode.rewrite_and_post:
         low, high = ins.low_mark, ins.high_mark
         cap = low + max_results
         if high is None or cap < high:
@@ -322,8 +353,24 @@ def prepare_queryset(queryset: Any, policy: EffectivePolicy) -> Preparation:
         pushed_filters=pushed,
         visible_fields=visible,
         projection=(*projection, *annotation_names),
+        extra_fields=tuple(extra),
         max_results=max_results,
+        mode=resolved_mode,
     )
+
+
+def finalize(
+    prep: Preparation,
+    rows: list[dict[str, Any]],
+    policy: EffectivePolicy,
+    hash_salt: str | bytes | None,
+) -> list[dict[str, Any]]:
+    """The post-execution pipeline (mandatory), then drop fields projected only for filters."""
+    result: list[dict[str, Any]] = apply_result_pipeline(rows, policy, hash_salt)
+    if not prep.extra_fields:
+        return result
+    extra = set(prep.extra_fields)
+    return [{k: v for k, v in row.items() if k not in extra} for row in result]
 
 
 def _reslice(qs: Any, low: int, high: int) -> Any:

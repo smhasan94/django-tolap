@@ -2,7 +2,8 @@
 
 from django_tolap.enforce import enforce
 from django_tolap.exceptions import TolapDenied, TolapSchemaMismatch, Uninspectable
+from django_tolap.pushdown import EnforcementMode
 
 __version__ = "0.1.0.dev0"
 
-__all__ = ["TolapDenied", "TolapSchemaMismatch", "Uninspectable", "enforce"]
+__all__ = ["EnforcementMode", "TolapDenied", "TolapSchemaMismatch", "Uninspectable", "enforce"]

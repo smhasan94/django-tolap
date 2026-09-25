@@ -153,4 +153,33 @@ def test_annotations_survive_post_pass(seeded: None) -> None:
 def test_public_api_has_single_executing_entry_point() -> None:
     """Only ``enforce`` executes a QuerySet; nothing public runs one without the post pass."""
     executing = {name for name in django_tolap.__all__ if callable(getattr(django_tolap, name))}
-    assert executing == {"enforce", "TolapDenied", "TolapSchemaMismatch", "Uninspectable"}
+    assert executing == {
+        "enforce",
+        "EnforcementMode",
+        "TolapDenied",
+        "TolapSchemaMismatch",
+        "Uninspectable",
+    }
+
+
+def test_post_only_mode_returns_same_rows_without_pushing(seeded: None) -> None:
+    ctx = signed(effective_policy(ANALYST))
+    pushed = enforce(Patient.objects.order_by("id"), ctx)
+    post = enforce(Patient.objects.order_by("id"), ctx, mode="postOnly")
+    assert pushed == post
+    with pytest.raises(ValueError):
+        enforce(Patient.objects.all(), ctx, mode="rewriteOnly")
+
+
+def test_filter_field_added_for_post_pass_is_stripped_from_output(seeded: None) -> None:
+    p = effective_policy(
+        {
+            "permissions": {"canQuery": True},
+            "objectRules": {
+                "rowFilters": [{"field": "region", "operator": "equals", "value": "us-east"}]
+            },
+        }
+    )
+    rows = enforce(Patient.objects.values("id", "full_name").order_by("id"), signed(p))
+    assert [r["id"] for r in rows] == [1, 3]
+    assert all(set(r) == {"id", "full_name"} for r in rows)

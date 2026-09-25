@@ -64,7 +64,24 @@ def test_filtered_field_kept_in_projection_even_when_hidden(seeded: None) -> Non
     prep = prepare_queryset(Patient.objects.values("id"), p)
     assert prep.allowed
     assert prep.projection == ("id", "region")
+    assert prep.extra_fields == ("region",)
     assert "region" not in prep.visible_fields
+
+
+def test_post_only_mode_pushes_nothing_but_still_projects_and_prechecks(seeded: None) -> None:
+    p = policy(
+        {
+            "fieldRules": {"hiddenFields": ["ssn"]},
+            "rowFilters": [{"field": "region", "operator": "equals", "value": "us-east"}],
+        },
+        limits={"maxResults": 1},
+    )
+    prep = prepare_queryset(Patient.objects.all(), p, mode="postOnly")
+    assert prep.allowed and not prep.pushed_filters and len(prep.unpushable_filters) == 1
+    assert "WHERE" not in sql(prep) and "LIMIT" not in sql(prep)
+    assert '"patients"."ssn"' not in sql(prep)
+    denied = prepare_queryset(Patient.objects.values("ssn"), p, mode="postOnly")
+    assert not denied.allowed
 
 
 def test_caller_projection_is_intersected_not_widened(seeded: None) -> None:

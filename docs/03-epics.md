@@ -118,10 +118,10 @@ signs; quickstart no longer needs an in-code policy.
 | Story | Title | FRs | Depends on | Status |
 | --- | --- | --- | --- | --- |
 | E2-S1 | Models and migrations | FR-3 | E1-S2 | done |
-| E2-S2 | `DjangoPolicyStore` and identity resolver | FR-3, FR-5 | E2-S1 | todo |
-| E2-S3 | Store conformance against upstream fixtures | FR-3 | E2-S2 | todo |
+| E2-S2 | `DjangoPolicyStore` and identity resolver | FR-3, FR-5 | E2-S1 | done |
+| E2-S3 | Store conformance against upstream fixtures | FR-3 | E2-S2 | done |
 | E2-S4 | Admin registration and validation | FR-4, FR-11 | E2-S2 | todo |
-| E2-S5 | Audit log | FR-3 | E2-S2 | todo |
+| E2-S5 | Audit log | FR-3 | E2-S2 | done |
 | E2-S6 | `issue_context()` and external contexts | FR-6 | E2-S2 | todo |
 | E2-S7 | README quickstart on the admin store | FR-1 | E2-S4, E2-S6 | todo |
 

@@ -43,6 +43,7 @@ select = ["E", "F", "I", "B", "UP", "W"]
 [tool.ruff.lint.per-file-ignores]
 "tests/gap/report.py" = ["E501"]  # Markdown table rows
 "tests/gap/corpus.py" = ["E501"]  # one QuerySet per line reads better
+"tests/gap/sa_corpus.py" = ["E501"]
 "examples/**" = ["E501"]
 
 [tool.ruff.lint.isort]

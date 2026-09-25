@@ -25,7 +25,9 @@ def test_corpus_entry_prepares_or_refuses_cleanly(seeded: None, entry) -> None: 
 
 def test_report_renders(seeded: None) -> None:
     from tests.gap import report
+    from tests.gap.sa_corpus import SA_CORPUS
 
     text = report.render()
     assert "## Policy: hide-ssn-filter-region" in text and connection.vendor in text
-    assert text.count("| `") == len(CORPUS) * len(POLICIES)
+    assert "## Policy: hide-ssn-filter-region (SQLAlchemy)" in text
+    assert text.count("| `") == (len(CORPUS) + len(SA_CORPUS)) * len(POLICIES)

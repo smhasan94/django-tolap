@@ -13,7 +13,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 | E3 | Tool helper and DRF integration | reviewed |
 | E4 | Differential hardening and gap measurement | reviewed |
 | E5 | Example app, benchmark, README, upstream issue | reviewed |
-| E6 | SQLAlchemy adapter | in progress |
+| E6 | SQLAlchemy adapter | done |
 
 ---
 
@@ -229,7 +229,7 @@ upstream would link or host; halt for the owner to post.
 
 ---
 
-## E6. SQLAlchemy adapter — status: in progress
+## E6. SQLAlchemy adapter — status: done
 
 | Story | Title | FRs | Depends on | Status |
 | --- | --- | --- | --- | --- |
@@ -237,7 +237,7 @@ upstream would link or host; halt for the owner to post.
 | E6-S2 | `Select` inspection and pre-checks | FR-19 | E6-S1 | done |
 | E6-S3 | Filter compiler and projection for `Select` | FR-19 | E6-S2 | done |
 | E6-S4 | `enforce()` + differential suite on SQLite/PostgreSQL | FR-19 | E6-S3 | done |
-| E6-S5 | README and gap corpus for SQLAlchemy | FR-19, FR-14 | E6-S4 | todo |
+| E6-S5 | README and gap corpus for SQLAlchemy | FR-19, FR-14 | E6-S4 | done |
 
 **E6-S1.** AC: `packages/sqlalchemy-tolap`; shared `tests/harness` (fixture loader,
 Hypothesis strategies, differential assertion) importable by both packages.

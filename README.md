@@ -60,8 +60,8 @@ ORDER BY 1 ASC LIMIT 500
 Without it: `SELECT ... FROM "patients" ORDER BY 1 ASC`, a million rows into Python, then
 TOLAP keeps 500. `ssn` is not in either statement.
 
-Status: **v0.1 in progress.** Epics 1 to 5 done (enforcement, store and admin, tool and DRF,
-differential hardening, example and benchmark); the SQLAlchemy adapter is next. See
+Status: **v0.1 feature-complete, unreleased.** All six epics done (enforcement, store and
+admin, tool and DRF, differential hardening, example and benchmark, SQLAlchemy adapter). See
 [`docs/03-epics.md`](docs/03-epics.md).
 
 ## Install
@@ -196,6 +196,34 @@ field, or when the target row is not visible under the row filters. The tenant i
 `"default"` unless `TOLAP["TENANT_RESOLVER"]` names a callable taking the request.
 Install with `pip install "django-tolap[drf]"`.
 
+## SQLAlchemy
+
+The same adapter for SQLAlchemy 2.x `Select` statements, without Django:
+
+```python
+from sqlalchemy import select
+from sqlalchemy_tolap import enforce
+
+rows = enforce(
+    select(Patient).where(Patient.full_name.ilike(f"%{q}%")),
+    context,            # a signed TOLAP SecurityContext from wherever you resolve policies
+    session,            # Session or Connection; its dialect decides what can be pushed
+    signing_key=KEY,
+)
+```
+
+Same pre-checks, same pushdown rules (negations render `(col <> x OR col IS NULL)`
+explicitly, since SQLAlchemy does not add the null arm Django does), same mandatory post
+pass, same differential proof on SQLite and PostgreSQL against the same fixtures and
+property tests. Entity selects (`select(Patient)`) are the default projection; named columns
+and labels are explicit references. `text()`, `literal_column()`, derived tables in `FROM`
+and set operations are refused. Install with `pip install sqlalchemy-tolap` once released;
+from this repository:
+
+```bash
+pip install "sqlalchemy-tolap @ git+https://github.com/smhasan94/django-tolap#subdirectory=packages/sqlalchemy-tolap"
+```
+
 ## What upstream already does, and what this adds
 
 The TOLAP Python SDK already rewrites **raw SQL strings** (`tolap_core.sql_rewriter`): it
@@ -216,7 +244,9 @@ Measured on 48 (QuerySet, policy) pairs from a corpus of realistic QuerySets
 | django-tolap prepares the same QuerySet | 46 |
 
 None of that is a defect in upstream, which was never built for ORM-rendered SQL. It is the
-gap.
+gap. The report has a second table for SQLAlchemy statements compiled with literal binds
+(the friendliest form for a string rewriter): entity selects are refused for the same reason,
+and only column-list selects rewrite cleanly.
 
 Where a filter has no faithful ORM form on your database (`contains`, `startsWith`,
 `matches` everywhere; `like` on SQLite; string ordering on PostgreSQL), it is left to the

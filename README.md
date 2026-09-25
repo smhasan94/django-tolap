@@ -157,8 +157,10 @@ is the security boundary and always runs; the pushdown only reduces what the dat
 produces.
 
 Every definition, assignment and resolution lands in the audit log (also in admin). The
-"Resolve preview" button on the definitions list shows what a user resolves to. Groups map
-to Django groups by default (`TOLAP["IDENTITY_RESOLVER"]` to change that).
+"Resolve preview" button on the definitions list shows what a user resolves to, and so does
+`python manage.py tolap_resolve alice --tenant clinic --source db:clinic:patients` (JSON;
+`--assignments` lists what matched, `--context` prints a signed context to hand to a tool).
+Groups map to Django groups by default (`TOLAP["IDENTITY_RESOLVER"]` to change that).
 
 ## In an agent tool
 

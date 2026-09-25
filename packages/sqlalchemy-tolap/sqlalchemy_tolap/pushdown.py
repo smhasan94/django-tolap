@@ -21,7 +21,7 @@ from sqlalchemy.sql.selectable import Select
 from tolap_core import EffectivePolicy, FilterOperator, RowFilter, apply_result_pipeline
 
 from sqlalchemy_tolap.exceptions import Uninspectable
-from sqlalchemy_tolap.inspect import Inspection, inspect
+from sqlalchemy_tolap.inspect import inspect
 from sqlalchemy_tolap.precheck import CANNOT_INSPECT, precheck_inspection
 from sqlalchemy_tolap.rules import FieldRules, field_visible
 
@@ -231,18 +231,20 @@ class Preparation:
 
 
 def _filter_columns(
-    ins: Inspection, root: Table, row_filters: list[RowFilter], key_map: dict[str, str]
-) -> tuple[list[str], dict[str, str], str | None]:
+    root: Table, row_filters: list[RowFilter], key_map: dict[str, str]
+) -> tuple[list[str], dict[str, str], dict[str, str], str | None]:
     """Resolve every row filter to exactly one column of the result, for the post pass.
 
     A bare or root-qualified field names a root column; another qualifier names a joined
-    table's column; both are matched case-insensitively against ``key_map``. A root column
-    the result lacks is added (``extra``); a filter is copied under its own spelling when
-    that differs from the column's post-pass key (``filter_keys``). A filter whose column is
-    not in the result and cannot be added is a denial: upstream would drop the row or, by
+    table's column; both are matched case-insensitively against ``key_map``. Returns the
+    root columns to add for filters (``extra``), the filter spellings to copy from a caller
+    key when they differ from the column's post-pass key (``filter_keys``), the key map
+    extended with the additions, or a denial: a filter whose column is not in the result
+    and cannot be added cannot be evaluated, and upstream would drop the row or, by
     bare-name fallback, read another table's column of the same name.
     """
-    lowered = {presented.lower(): key for key, presented in key_map.items()}
+    mapped = dict(key_map)
+    lowered = {presented.lower(): key for key, presented in mapped.items()}
     extra: list[str] = []
     keys: dict[str, str] = {}
     for rf in row_filters:
@@ -254,15 +256,15 @@ def _filter_columns(
             if caller is None:
                 caller = col.name
                 extra.append(caller)
-                key_map[caller] = target
+                mapped[caller] = target
                 lowered[target.lower()] = caller
         else:
             caller = lowered.get(f"{qualifier}.{leaf}".lower()) if qualifier else None
             if caller is None:
-                return extra, keys, FILTER_NOT_IN_RESULT.format(field=rf.field)
-        if key_map[caller] != rf.field:
+                return extra, keys, mapped, FILTER_NOT_IN_RESULT.format(field=rf.field)
+        if mapped[caller] != rf.field:
             keys[rf.field] = caller
-    return extra, keys, None
+    return extra, keys, mapped, None
 
 
 def prepare_select(
@@ -301,7 +303,7 @@ def prepare_select(
     key_map.update({n: f"{root.name}.{n}" for n in names if n not in key_map and n in by_name})
 
     row_filters = list(policy.object_rules.row_filters or ()) if policy.object_rules else []
-    extra, filter_keys, denial = _filter_columns(ins, root, row_filters, key_map)
+    extra, filter_keys, key_map, denial = _filter_columns(root, row_filters, key_map)
     if denial is not None:
         return Preparation.denied(denial)
     for name in extra:
@@ -361,17 +363,14 @@ def finalize(
     every other key is the caller's again.
     """
     key_map, copies = prep.key_map, prep.filter_keys
-    if key_map or copies:
-        rows = [
-            {
-                **{key_map.get(k, k): v for k, v in row.items()},
-                **{f: row[c] for f, c in copies.items()},
-            }
-            for row in rows
-        ]
+    rows = [
+        {
+            **{key_map.get(k, k): v for k, v in row.items()},
+            **{f: row[c] for f, c in copies.items()},
+        }
+        for row in rows
+    ]
     result: list[dict[str, Any]] = apply_result_pipeline(rows, policy, hash_salt)
-    if not key_map and not copies and not prep.extra_fields:
-        return result
     back = {v: k for k, v in key_map.items()}
     extra = set(prep.extra_fields)
     restored: list[dict[str, Any]] = []

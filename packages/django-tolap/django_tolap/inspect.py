@@ -25,6 +25,7 @@ from django.db.models.sql.datastructures import BaseTable, Join
 from django.db.models.sql.where import ExtraWhere, NothingNode, WhereNode
 
 from django_tolap.exceptions import Uninspectable
+from django_tolap.objects import object_name
 
 
 @dataclass(frozen=True, order=True)
@@ -178,6 +179,28 @@ def _related_path(root: type[Model], path: str) -> FieldRef | None:
     return FieldRef(model=model, name=leaf_field.name)
 
 
+def _joined_once(root: type[Model], name: str, ref: FieldRef, joined: dict[str, FieldRef]) -> None:
+    """Refuse a joined column the post pass could not tell from another.
+
+    Every column is presented as ``object.field`` (object names, not model classes: a proxy
+    model shares its concrete model's name), so a relation back to the root object, the
+    same object reached by two relation paths, or the same column projected twice would
+    collide on that key, and a row filter on the object could only be evaluated against
+    one copy.
+    """
+    obj = object_name(ref.model).lower()
+    if obj == object_name(root).lower():
+        raise Uninspectable(f"projection of {name!r} reaches the root object again")
+    path = name.rsplit("__", 1)[0]
+    for other, seen in joined.items():
+        if object_name(seen.model).lower() != obj:
+            continue
+        if other.rsplit("__", 1)[0] != path:
+            raise Uninspectable(f"projection of {name!r} reaches {obj} by a second relation")
+        if seen.name.lower() == ref.name.lower():
+            raise Uninspectable(f"projection of {name!r} repeats {other!r}")
+
+
 def _projection(
     qs: QuerySet[Any], query: Query
 ) -> tuple[tuple[str, ...] | None, dict[str, FieldRef]]:
@@ -206,12 +229,7 @@ def _projection(
             elif name in concrete:
                 names.append(name)
             elif "__" in name and (ref := _related_path(root, name)) is not None:
-                if ref.model is root:
-                    # The post pass sees every column as ``object.field``; a second copy
-                    # of the root model would be indistinguishable from the root itself.
-                    raise Uninspectable(f"projection of {name!r} reaches the root model again")
-                if any(other == ref for other in joined.values()):
-                    raise Uninspectable(f"projection of {name!r} repeats a joined column")
+                _joined_once(root, name, ref, joined)
                 names.append(name)
                 joined[name] = ref
             else:

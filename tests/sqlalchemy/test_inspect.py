@@ -100,9 +100,14 @@ def test_limit_offset() -> None:
             _other, _other.id == Patient.id
         ),
         lambda: (
-            select(Patient.id, _e1.region.label("r1"), _e2.region.label("r2"))
+            select(Patient.id, _e1.region.label("r1"), _e2.status.label("s2"))
             .join(_e1, _e1.patient_id == Patient.id)
             .join(_e2, _e2.patient_id == Patient.id)
+        ),
+        lambda: (
+            select(_other.id, patients.c.region.label("other_region"))
+            .select_from(_other)
+            .join(patients, patients.c.id == _other.id)
         ),
         lambda: select(func.count(Patient.id)),
     ],
@@ -122,7 +127,8 @@ def test_limit_offset() -> None:
         "dotted-key",
         "column-twice",
         "alias-of-root",
-        "joined-column-twice",
+        "table-twice",
+        "root-alias-plus-table",
         "unlabelled",
     ],
 )
@@ -137,6 +143,10 @@ def test_aliased_table() -> None:
     p = aliased(Patient)
     ins = inspect(select(p.id, p.region).where(p.status == "a"))
     assert ins.root is patients and ColRef("patients", "status") in ins.referenced
+    assert ins.columns == {"id": ColRef("patients", "id"), "region": ColRef("patients", "region")}
+    # A correlated subquery naming the root table again is not a second FROM copy.
+    inner = select(Encounter.id).where(Encounter.patient_id == Patient.id).exists()
+    assert inspect(select(Patient.id).where(inner)).root is patients
     assert encounters is not None
 
 

@@ -344,3 +344,20 @@ def test_callers_own_key_for_a_filtered_column_is_kept(seeded: Session) -> None:
     stmt = select(Patient.id, Patient.region.label("REGION")).order_by(Patient.id)
     rows = enforce(stmt, signed(p), seeded, signing_key=SIGNING_KEY)
     assert rows == [{"id": 1, "REGION": "us-east"}, {"id": 3, "REGION": "us-east"}]
+
+
+def test_aliased_root_with_explicit_columns(seeded: Session) -> None:
+    from sqlalchemy.orm import aliased
+
+    a = aliased(Patient)
+    p = policy(
+        {"rowFilters": [{"field": "patients.region", "operator": "equals", "value": "us-east"}]}
+    )
+    stmt = select(a.id, a.region.label("where")).select_from(a).order_by(a.id)
+    results = [
+        enforce(stmt, signed(p), seeded, signing_key=SIGNING_KEY, mode=mode)
+        for mode in EnforcementMode
+    ]
+    assert (
+        results[0] == results[1] == [{"id": 1, "where": "us-east"}, {"id": 3, "where": "us-east"}]
+    )

@@ -119,17 +119,31 @@ def _entity_tables(stmt: Select[Any]) -> tuple[list[Table], int]:
     return tables, len(raw)
 
 
-def _plain_column(col: Column[Any], root: Table, root_from: FromClause) -> ColRef:
-    """The table and column a projected column reads; an alias of the root table is refused.
+def _top_level_tables(froms: Iterable[FromClause]) -> list[Table]:
+    """The tables of the statement's own FROM list, one entry per Table or Alias leaf."""
+    tables: list[Table] = []
+    for f in froms:
+        if isinstance(f, Join):
+            tables.extend(_top_level_tables((f.left, f.right)))
+        elif isinstance(f, Table):
+            tables.append(canonical(f))
+        elif isinstance(f, Alias) and isinstance(f.element, Table):
+            tables.append(canonical(f.element))
+    return tables
 
-    The post pass sees every plain column as ``table.column``, so a second copy of the root
-    table (a self-join) would be indistinguishable from the root itself.
+
+def _each_table_once(froms: Iterable[FromClause]) -> None:
+    """Refuse a table that appears twice in FROM (a self-join, two aliases of one table).
+
+    The post pass sees every plain column as ``table.column``, so a second copy of a table
+    would be indistinguishable from the first, and a row filter on that table could only be
+    evaluated against one of them.
     """
-    owner = col.table
-    table = base_table(col)
-    if table is root and owner is not root_from and not isinstance(owner, Table):
-        raise Uninspectable(f"column {col.name!r} of an alias of the root table {root.name}")
-    return ColRef(table.name, col.name)
+    seen: set[str] = set()
+    for table in _top_level_tables(froms):
+        if table.name in seen:
+            raise Uninspectable(f"table {table.name} appears twice in FROM")
+        seen.add(table.name)
 
 
 def _once(columns: dict[str, ColRef], key: str, ref: ColRef) -> None:
@@ -169,6 +183,7 @@ def inspect(stmt: Any) -> Inspection:
     if not froms:
         raise Uninspectable("statement has no FROM")
     walker.froms(froms)
+    _each_table_once(froms)
     root_from: FromClause = froms[0]
     while isinstance(root_from, Join):
         root_from = root_from.left
@@ -201,7 +216,7 @@ def inspect(stmt: Any) -> Inspection:
     if explicit:
         for col in selected:
             if isinstance(col, Column):
-                ref = _plain_column(col, root, root_from)
+                ref = ColRef(base_table(col).name, col.name)
                 if ref.table != root.name:
                     # The row's key is the column name; it must not collide with a root
                     # column the post pass may need (a filtered field is projected too).
@@ -213,7 +228,7 @@ def inspect(stmt: Any) -> Inspection:
             elif isinstance(col, Label) and isinstance(col.element, Column):
                 # A plain column under another key is still that column: pre-checked and
                 # masked as such, never treated as a derived value.
-                ref = _plain_column(col.element, root, root_from)
+                ref = ColRef(base_table(col.element).name, col.element.name)
                 _no_shadow(col.name, ref, root)
                 _once(columns, col.name, ref)
                 walker.refs.add(ref)

@@ -26,8 +26,9 @@
   lookup always hits; copies are stripped after and the caller's keys restored. A filter
   whose field is not in the result and is not a root field is refused (`row filter field
   not in result`), whether its object is joined or absent. A projection that reaches the
-  root model again (`referrer__region`) or repeats a joined column, keys containing a dot,
-  and annotations named like a root field in any case are refused. The property test now
+  root object again (`referrer__region`), reaches one object by two relations, or repeats
+  a joined column (object names compared, so a proxy model counts as its concrete model),
+  keys containing a dot, and annotations named like a root field in any case are refused. The property test now
   gives every encounter a region other than its patient's, which is what catches this
   class.
 - `values("related__field")` projections are accepted. The joined column is pre-checked
@@ -61,7 +62,8 @@
   root column other than itself (compared case-insensitively), or containing a dot, is
   refused with `label it`, since the row key would collide with a root column the post pass
   may need. The post pass sees every plain column under a unique `table.column` key, a
-  column projected twice or through an alias of the root table is refused, and row filters
+  table that appears twice in the statement's FROM list (a self-join, two aliases of one
+  table) or a column projected twice is refused, and row filters
   are resolved to exactly one column of the result and copied under the filter's own
   spelling (see the django-tolap fix above), so a column of another table can never answer
   for them; a filter whose column is not in the result is refused. Same differential proof,

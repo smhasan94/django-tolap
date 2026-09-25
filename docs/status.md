@@ -66,8 +66,9 @@ Regenerate the gap report with `DATABASE_URL=<postgres> make gap-report`.
   key in row order whose bare form matches. With joined columns in the row (`patients.email`
   keys) a qualified or differently-cased root filter could read the wrong object's column.
   Both adapters now present every model field to the post pass under a unique
-  `object.field` key (`Preparation.key_map`), refuse a column projected twice or through an
-  alias of the root, resolve every filter to exactly one column of the result (root or
+  `object.field` key (`Preparation.key_map`), refuse a table that appears twice in FROM
+  (SQLAlchemy) or an object reached twice (Django) and a column projected twice, resolve
+  every filter to exactly one column of the result (root or
   joined, case-insensitively) and copy it under the filter's own spelling
   (`Preparation.filter_keys`); a filter whose column is not in the result is refused.
   Keep the property tests' encounter regions different from the patient's; equal regions

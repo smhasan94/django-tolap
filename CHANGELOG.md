@@ -4,6 +4,11 @@
 
 ### django-tolap
 
+- `enforce_save`, `enforce_delete`, `enforce_update` and `enforce_queryset_delete`: the ORM
+  write paths under a policy, through upstream `validate_write` with the target row read
+  under the policy first. Fail closed: one unwritable field or one invisible target row
+  refuses the whole write; bulk writes are all-or-nothing. A save without `update_fields` is
+  a full replace. `ToolContext` gains `save`, `delete`, `update`, `delete_queryset`.
 - `manage.py tolap_resolve USER [--tenant T] [--source S]` prints the effective policy a user
   resolves to as JSON; `--assignments` adds the assignments considered, `--context [--ttl N]`
   prints a signed serialized context instead, `--audit` records the resolution (off by

@@ -206,6 +206,12 @@ def _projection(
             elif name in concrete:
                 names.append(name)
             elif "__" in name and (ref := _related_path(root, name)) is not None:
+                if ref.model is root:
+                    # The post pass sees every column as ``object.field``; a second copy
+                    # of the root model would be indistinguishable from the root itself.
+                    raise Uninspectable(f"projection of {name!r} reaches the root model again")
+                if any(other == ref for other in joined.values()):
+                    raise Uninspectable(f"projection of {name!r} repeats a joined column")
                 names.append(name)
                 joined[name] = ref
             else:

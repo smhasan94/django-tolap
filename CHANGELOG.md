@@ -18,15 +18,18 @@
   a row filter could be evaluated against the wrong object's column of the same name:
   upstream's post pass looks a filter's field up by exact key first, then by a bare-name
   match over the row's keys in order, so `patients.region` could read the encounter's region
-  and `Encounters.Region` the patient's. Every row filter is now resolved to exactly one
-  column of the result before the post pass (bare and root-qualified names to the root,
-  other qualifiers to the joined column, case-insensitively) and copied into the row under
-  the filter's own spelling so the exact lookup always hits; the copies are stripped after.
-  A filter on a joined object whose column is not in the result is refused (`row filter
-  field not in result`); a filter on an object outside the query is left to upstream.
-  Projection keys containing a dot, and annotations named like a root field in any case,
-  are refused. The property test now gives every encounter a region other than its
-  patient's, which is what catches this class.
+  and `Encounters.Region` the patient's. The post pass now sees every model field under a
+  unique `object.field` key (root fields included; annotations keep their name), every row
+  filter is resolved to exactly one such field before the post pass (bare and
+  root-qualified names to the root, other qualifiers to the joined object, compared
+  case-insensitively) and copied into the row under the filter's own spelling so the exact
+  lookup always hits; copies are stripped after and the caller's keys restored. A filter
+  whose field is not in the result and is not a root field is refused (`row filter field
+  not in result`), whether its object is joined or absent. A projection that reaches the
+  root model again (`referrer__region`) or repeats a joined column, keys containing a dot,
+  and annotations named like a root field in any case are refused. The property test now
+  gives every encounter a region other than its patient's, which is what catches this
+  class.
 - `values("related__field")` projections are accepted. The joined column is pre-checked
   against its own object's hidden and allowed fields, presented to the post pass as
   `object.field` so that object's masking rules apply, and returned under the caller's key.
@@ -57,11 +60,12 @@
   applies, and returned under the caller's key. A projection key used twice, or named like a
   root column other than itself (compared case-insensitively), or containing a dot, is
   refused with `label it`, since the row key would collide with a root column the post pass
-  may need. Row filters are resolved to exactly one column of the result before the post
-  pass and copied under the filter's own spelling (see the django-tolap fix above), so a
-  column of another table can never answer for them; a filter on a joined table whose
-  column is not in the result is refused. Same differential proof, on every CI vendor, with
-  encounter regions that differ from their patient's.
+  may need. The post pass sees every plain column under a unique `table.column` key, a
+  column projected twice or through an alias of the root table is refused, and row filters
+  are resolved to exactly one column of the result and copied under the filter's own
+  spelling (see the django-tolap fix above), so a column of another table can never answer
+  for them; a filter whose column is not in the result is refused. Same differential proof,
+  on every CI vendor, with encounter regions that differ from their patient's.
 
 ## 0.1.1 — 2026-09-25 (django-tolap only)
 

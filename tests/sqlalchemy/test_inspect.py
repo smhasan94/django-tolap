@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import pytest
 from sqlalchemy import column, exists, func, literal_column, select, text
+from sqlalchemy.orm import aliased
 
 from sqlalchemy_tolap.exceptions import Uninspectable
 from sqlalchemy_tolap.inspect import ColRef, inspect
 from tests.sqlalchemy.models import Encounter, Patient, encounters, patients
+
+_other = aliased(Patient)
+_e1, _e2 = aliased(Encounter), aliased(Encounter)
 
 
 def test_entity_select_is_default_projection() -> None:
@@ -91,6 +95,15 @@ def test_limit_offset() -> None:
         lambda: select(Patient.id, Encounter.status.label("region")).join(Encounter),
         lambda: select(Patient.id, Encounter.status.label("REGION")).join(Encounter),
         lambda: select(Patient.id, func.upper(Patient.full_name).label("encounters.status")),
+        lambda: select(Patient.region, Patient.region.label("r")),
+        lambda: select(Patient.id, _other.region.label("other")).join(
+            _other, _other.id == Patient.id
+        ),
+        lambda: (
+            select(Patient.id, _e1.region.label("r1"), _e2.region.label("r2"))
+            .join(_e1, _e1.patient_id == Patient.id)
+            .join(_e2, _e2.patient_id == Patient.id)
+        ),
         lambda: select(func.count(Patient.id)),
     ],
     ids=[
@@ -107,6 +120,9 @@ def test_limit_offset() -> None:
         "label-shadows-root",
         "label-shadows-root-case",
         "dotted-key",
+        "column-twice",
+        "alias-of-root",
+        "joined-column-twice",
         "unlabelled",
     ],
 )
@@ -138,3 +154,4 @@ def test_joined_and_labelled_columns_are_keyed_to_their_object() -> None:
     assert ins.annotations == {}
     same = inspect(select(Patient.id, Patient.status.label("status")))
     assert same.renamed == {"status": ColRef("patients", "status")}  # its own name: no shadow
+    assert same.columns == {"id": ColRef("patients", "id"), "status": ColRef("patients", "status")}

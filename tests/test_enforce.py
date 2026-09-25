@@ -298,8 +298,9 @@ def test_qualified_root_filter_is_not_intercepted_by_a_joined_key(seeded: None) 
     # A filter on a joined object whose field is not in the result cannot be evaluated.
     denied = prepare_queryset(Patient.objects.values("id", "encounters__occurred_at"), joined)
     assert denied.denial_reason == FILTER_NOT_IN_RESULT.format(field="Encounters.Region")
-    # A filter on an object outside the query is left to upstream's lookup.
-    assert prepare_queryset(Patient.objects.values("id"), joined).allowed
+    # A filter on an object outside the query cannot be evaluated either.
+    outside = prepare_queryset(Patient.objects.values("id"), joined)
+    assert outside.denial_reason == FILTER_NOT_IN_RESULT.format(field="Encounters.Region")
 
 
 def test_callers_own_key_for_a_filtered_field_is_kept(seeded: None) -> None:

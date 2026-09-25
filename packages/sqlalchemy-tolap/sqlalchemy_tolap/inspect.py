@@ -35,8 +35,8 @@ class Inspection:
     referenced: frozenset[ColRef]  # explicit references only; never a default projection
     projected: tuple[str, ...] | None  # names in the caller's explicit projection, else None
     selected: tuple[Any, ...]  # the selected column elements, in order
-    renamed: dict[str, ColRef]  # projected keys that are plain columns of another table, or
-    # labelled columns; the post pass sees them as ``table.column``
+    columns: dict[str, ColRef]  # every projected key that is a plain column, by caller key
+    renamed: dict[str, ColRef]  # the subset that is a column of another table or a label
     annotations: dict[str, frozenset[ColRef]]
     limit: int | None
     offset: int | None
@@ -119,6 +119,32 @@ def _entity_tables(stmt: Select[Any]) -> tuple[list[Table], int]:
     return tables, len(raw)
 
 
+def _plain_column(col: Column[Any], root: Table, root_from: FromClause) -> ColRef:
+    """The table and column a projected column reads; an alias of the root table is refused.
+
+    The post pass sees every plain column as ``table.column``, so a second copy of the root
+    table (a self-join) would be indistinguishable from the root itself.
+    """
+    owner = col.table
+    table = base_table(col)
+    if table is root and owner is not root_from and not isinstance(owner, Table):
+        raise Uninspectable(f"column {col.name!r} of an alias of the root table {root.name}")
+    return ColRef(table.name, col.name)
+
+
+def _once(columns: dict[str, ColRef], key: str, ref: ColRef) -> None:
+    """Record a plain column under the caller's key; a column projected twice is refused.
+
+    Two keys for one column would collide on the ``table.column`` key the post pass sees.
+    """
+    for other, seen in columns.items():
+        if seen == ref:
+            raise Uninspectable(
+                f"column {ref.table}.{ref.name} is projected twice ({other!r} and {key!r})"
+            )
+    columns[key] = ref
+
+
 def _no_shadow(key: str, ref: ColRef | None, root: Table) -> None:
     """Refuse a projection key named like a root column unless it is that very column.
 
@@ -169,24 +195,27 @@ def inspect(stmt: Any) -> Inspection:
 
     selected = tuple(stmt.selected_columns)
     projected: list[str] = []
+    columns: dict[str, ColRef] = {}
     renamed: dict[str, ColRef] = {}
     annotations: dict[str, frozenset[ColRef]] = {}
     if explicit:
         for col in selected:
             if isinstance(col, Column):
-                ref = ColRef(base_table(col).name, col.name)
+                ref = _plain_column(col, root, root_from)
                 if ref.table != root.name:
                     # The row's key is the column name; it must not collide with a root
                     # column the post pass may need (a filtered field is projected too).
                     _no_shadow(col.name, ref, root)
                     renamed[col.name] = ref
+                _once(columns, col.name, ref)
                 walker.refs.add(ref)
                 projected.append(col.name)
             elif isinstance(col, Label) and isinstance(col.element, Column):
                 # A plain column under another key is still that column: pre-checked and
                 # masked as such, never treated as a derived value.
-                ref = ColRef(base_table(col.element).name, col.element.name)
+                ref = _plain_column(col.element, root, root_from)
                 _no_shadow(col.name, ref, root)
+                _once(columns, col.name, ref)
                 walker.refs.add(ref)
                 renamed[col.name] = ref
                 projected.append(col.name)
@@ -211,6 +240,7 @@ def inspect(stmt: Any) -> Inspection:
         referenced=frozenset(walker.refs),
         projected=tuple(projected) if explicit else None,
         selected=selected,
+        columns=columns,
         renamed=renamed,
         annotations=annotations,
         limit=stmt._limit,

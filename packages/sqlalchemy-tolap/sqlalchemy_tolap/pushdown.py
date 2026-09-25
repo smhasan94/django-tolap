@@ -209,14 +209,15 @@ class Preparation:
     extra_fields: tuple[str, ...] = ()
     """Fields projected only so the post pass can evaluate a row filter; stripped after."""
     key_map: dict[str, str] = dataclass_field(default_factory=dict)
-    """Caller keys of joined or labelled columns and the ``table.column`` name the post pass
-    sees them under, so that table's rules match them."""
+    """Every plain column's caller key (root columns and filter extras included) and the
+    ``table.column`` key the post pass sees it under: unique per column, so that table's
+    rules match it and no two keys share a bare name by accident. Derived values (labels
+    over expressions) keep their key."""
     filter_keys: dict[str, str] = dataclass_field(default_factory=dict)
     """Row-filter fields and the caller key of the column each one reads, for every filter
-    whose spelling is not already a key of that column (``patients.region``, ``REGION``,
-    ``Encounters.Region``). Each is copied into the row under the filter's own spelling so
-    upstream's exact lookup hits and its bare-name fallback never reads another table's
-    column of the same name; stripped after the post pass."""
+    whose spelling is not that column's post-pass key (``REGION``, ``Encounters.Region``).
+    Each is copied into the row under the filter's own spelling so upstream's exact lookup
+    hits and its bare-name fallback is never reached; stripped after the post pass."""
     max_results: int | None = None
     mode: EnforcementMode = EnforcementMode.rewrite_and_post
 
@@ -230,45 +231,37 @@ class Preparation:
 
 
 def _filter_columns(
-    ins: Inspection, root: Table, row_filters: list[RowFilter], names: list[str]
+    ins: Inspection, root: Table, row_filters: list[RowFilter], key_map: dict[str, str]
 ) -> tuple[list[str], dict[str, str], str | None]:
     """Resolve every row filter to exactly one column of the result, for the post pass.
 
-    Returns the root columns to project only for filters (``extra``), the exact key to copy
-    each filter's column under when the filter is spelled otherwise (``filter_keys``), or a
-    denial: a filter on a joined table whose column is not in the result cannot be
-    evaluated, and upstream's bare-name fallback would read another table's column.
-    A filter on a table outside the query is left to upstream's own lookup.
+    A bare or root-qualified field names a root column; another qualifier names a joined
+    table's column; both are matched case-insensitively against ``key_map``. A root column
+    the result lacks is added (``extra``); a filter is copied under its own spelling when
+    that differs from the column's post-pass key (``filter_keys``). A filter whose column is
+    not in the result and cannot be added is a denial: upstream would drop the row or, by
+    bare-name fallback, read another table's column of the same name.
     """
-    tables = {name.lower() for name in ins.tables}
+    lowered = {presented.lower(): key for key, presented in key_map.items()}
     extra: list[str] = []
     keys: dict[str, str] = {}
     for rf in row_filters:
         qualifier, _, leaf = rf.field.rpartition(".")
         col = resolve_column(rf, root)
         if col is not None:
-            if rf.field in names:
-                continue  # the caller's own key for that column (no shadow can reach here)
-            if col.name not in names and col.name not in extra:
-                extra.append(col.name)
-            if rf.field != col.name:
-                keys[rf.field] = col.name
-            continue
-        if (
-            not qualifier
-            or qualifier.lower() not in tables
-            or qualifier.lower() == root.name.lower()
-        ):
-            continue
-        matches = [
-            key
-            for key, ref in ins.renamed.items()
-            if ref.table.lower() == qualifier.lower() and ref.name.lower() == leaf.lower()
-        ]
-        if not matches:
-            return extra, keys, FILTER_NOT_IN_RESULT.format(field=rf.field)
-        if rf.field not in matches:
-            keys[rf.field] = matches[0]
+            target = f"{root.name}.{col.name}"
+            caller = lowered.get(target.lower())
+            if caller is None:
+                caller = col.name
+                extra.append(caller)
+                key_map[caller] = target
+                lowered[target.lower()] = caller
+        else:
+            caller = lowered.get(f"{qualifier}.{leaf}".lower()) if qualifier else None
+            if caller is None:
+                return extra, keys, FILTER_NOT_IN_RESULT.format(field=rf.field)
+        if key_map[caller] != rf.field:
+            keys[rf.field] = caller
     return extra, keys, None
 
 
@@ -302,12 +295,13 @@ def prepare_select(
         # reads visible, so the caller's projection is taken as is.
         base = list(ins.selected)
         names = [col.name for col in ins.selected]
-    key_map = {key: f"{ref.table}.{ref.name}" for key, ref in ins.renamed.items()}
     if not base:
         return Preparation.denied(NO_FIELDS_VISIBLE)
+    key_map = {key: f"{ref.table}.{ref.name}" for key, ref in ins.columns.items()}
+    key_map.update({n: f"{root.name}.{n}" for n in names if n not in key_map and n in by_name})
 
     row_filters = list(policy.object_rules.row_filters or ()) if policy.object_rules else []
-    extra, filter_keys, denial = _filter_columns(ins, root, row_filters, names)
+    extra, filter_keys, denial = _filter_columns(ins, root, row_filters, key_map)
     if denial is not None:
         return Preparation.denied(denial)
     for name in extra:
@@ -359,35 +353,35 @@ def finalize(
     policy: EffectivePolicy,
     hash_salt: str | bytes | None,
 ) -> list[dict[str, Any]]:
-    """The post-execution pipeline (mandatory), then drop fields projected only for filters.
+    """The post-execution pipeline (mandatory), then the caller's keys and columns back.
 
-    Joined and labelled columns are presented to the pipeline as ``table.column`` so that
-    table's rules match them, and handed back under the caller's key.
+    Plain columns are presented as ``table.column`` (``key_map``) and each row filter's
+    column is copied under the filter's own spelling (``filter_keys``); afterwards the
+    copies and the columns projected only for filters (``extra_fields``) are dropped and
+    every other key is the caller's again.
     """
-    return _post_pass(prep.key_map, prep.filter_keys, prep.extra_fields, rows, policy, hash_salt)
-
-
-def _post_pass(
-    key_map: dict[str, str],
-    filter_keys: dict[str, str],
-    extra_fields: tuple[str, ...],
-    rows: list[dict[str, Any]],
-    policy: EffectivePolicy,
-    hash_salt: str | bytes | None,
-) -> list[dict[str, Any]]:
-    if key_map or filter_keys:
+    key_map, copies = prep.key_map, prep.filter_keys
+    if key_map or copies:
         rows = [
             {
                 **{key_map.get(k, k): v for k, v in row.items()},
-                **{k: row[c] for k, c in filter_keys.items()},
+                **{f: row[c] for f, c in copies.items()},
             }
             for row in rows
         ]
     result: list[dict[str, Any]] = apply_result_pipeline(rows, policy, hash_salt)
-    back = {v: k for k, v in key_map.items()}
-    drop = set(extra_fields) | set(filter_keys)
-    if not back and not drop:
+    if not key_map and not copies and not prep.extra_fields:
         return result
-    return [
-        {back.get(k, k): v for k, v in row.items() if k in back or k not in drop} for row in result
-    ]
+    back = {v: k for k, v in key_map.items()}
+    extra = set(prep.extra_fields)
+    restored: list[dict[str, Any]] = []
+    for row in result:
+        kept: dict[str, Any] = {}
+        for k, v in row.items():
+            if k in copies:
+                continue
+            caller = back.get(k, k)
+            if caller not in extra:
+                kept[caller] = v
+        restored.append(kept)
+    return restored

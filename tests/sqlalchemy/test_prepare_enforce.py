@@ -249,7 +249,7 @@ def test_bare_joined_column_with_root_filter_and_limit(seeded: Session) -> None:
     stmt = select(Patient.id, Encounter.occurred_at).join(Encounter).order_by(Patient.id)
     prep = prepare_select(stmt, p, dialect=dialect)
     assert prep.allowed and prep.projection[:2] == ("id", "occurred_at")
-    assert prep.key_map == {"occurred_at": "encounters.occurred_at"}
+    assert prep.key_map["occurred_at"] == "encounters.occurred_at"
     rows = enforce(stmt, signed(p), seeded, signing_key=SIGNING_KEY)
     assert rows and all(set(r) == {"id", "occurred_at"} for r in rows) and len(rows) <= 2
     plain = seeded.execute(stmt.where(Patient.region == "us-east").limit(2)).mappings().all()
@@ -317,8 +317,26 @@ def test_qualified_root_filter_is_not_intercepted_by_a_renamed_key(seeded: Sessi
     prep = prepare_select(bare, joined, dialect=dialect_name(seeded))
     assert not prep.allowed
     assert prep.denial_reason == FILTER_NOT_IN_RESULT.format(field="Encounters.Region")
-    # A filter on a table outside the query is left to upstream's lookup.
-    assert prepare_select(select(Patient.id), joined, dialect=dialect_name(seeded)).allowed
+    # A filter on a table outside the query cannot be evaluated either.
+    outside = prepare_select(select(Patient.id), joined, dialect=dialect_name(seeded))
+    assert outside.denial_reason == FILTER_NOT_IN_RESULT.format(field="Encounters.Region")
+
+
+def test_filter_on_a_labelled_root_column_beside_a_joined_namesake(seeded: Session) -> None:
+    """The label's key is renamed for the post pass, so the filter's spelling is copied."""
+    p = policy({"rowFilters": [{"field": "REGION", "operator": "equals", "value": "us-east"}]})
+    stmt = (
+        select(Encounter.region.label("er"), Patient.id, Patient.region.label("REGION"))
+        .select_from(Patient)
+        .join(Encounter)
+        .order_by(Encounter.id)
+    )
+    results = [
+        enforce(stmt, signed(p), seeded, signing_key=SIGNING_KEY, mode=mode)
+        for mode in EnforcementMode
+    ]
+    assert results[0] == results[1] and results[0]
+    assert all(r["REGION"] == "us-east" and set(r) == {"er", "id", "REGION"} for r in results[0])
 
 
 def test_callers_own_key_for_a_filtered_column_is_kept(seeded: Session) -> None:

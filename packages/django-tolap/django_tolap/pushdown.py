@@ -37,7 +37,7 @@ from django.db.models import Manager, Model, Q
 from tolap_core import EffectivePolicy, FilterOperator, RowFilter, apply_result_pipeline
 
 from django_tolap.exceptions import Uninspectable
-from django_tolap.inspect import Inspection, inspect
+from django_tolap.inspect import inspect
 from django_tolap.objects import object_name
 from django_tolap.precheck import CANNOT_INSPECT, FieldRules, field_visible, precheck_inspection
 
@@ -250,14 +250,15 @@ class Preparation:
     extra_fields: tuple[str, ...] = ()
     """Fields projected only so the post pass can evaluate a row filter; stripped after."""
     key_map: dict[str, str] = dataclass_field(default_factory=dict)
-    """Joined projection keys (``patient__email``) and the ``object.field`` name the post
-    pass sees them under (``patients.email``), so its rules match the right object."""
+    """Every model field's caller key (root fields, ``patient__email``, filter extras) and
+    the ``object.field`` key the post pass sees it under: unique per field, so that object's
+    rules match it and no two keys share a bare name by accident. Annotations keep their
+    key."""
     filter_keys: dict[str, str] = dataclass_field(default_factory=dict)
     """Row-filter fields and the caller key of the field each one reads, for every filter
-    whose spelling is not already a key of that field (``patients.region``, ``REGION``,
-    ``Encounters.Region``). Each is copied into the row under the filter's own spelling so
-    upstream's exact lookup hits and its bare-name fallback never reads another object's
-    field of the same name; stripped after the post pass."""
+    whose spelling is not that field's post-pass key (``REGION``, ``Encounters.Region``).
+    Each is copied into the row under the filter's own spelling so upstream's exact lookup
+    hits and its bare-name fallback is never reached; stripped after the post pass."""
     max_results: int | None = None
     mode: EnforcementMode = EnforcementMode.rewrite_and_post
 
@@ -277,44 +278,38 @@ def _root_filter_field(rf: RowFilter, model: type[Model]) -> str | None:
 
 
 def _filter_fields(
-    ins: Inspection, root: type[Model], row_filters: list[RowFilter], base: list[str]
+    root: type[Model], row_filters: list[RowFilter], key_map: dict[str, str]
 ) -> tuple[list[str], dict[str, str], str | None]:
     """Resolve every row filter to exactly one field of the result, for the post pass.
 
-    Returns the root fields to project only for filters (``extra``), the exact key to copy
-    each filter's field under when the filter is spelled otherwise (``filter_keys``), or a
-    denial: a filter on a joined object whose field is not in the result cannot be
-    evaluated, and upstream's bare-name fallback would read another object's field. A
-    filter on an object outside the query is left to upstream's own lookup.
+    A bare or root-qualified field names a root field; another qualifier names a joined
+    object's field; both are matched case-insensitively against ``key_map``. A root field
+    the result lacks is added (``extra``); a filter is copied under its own spelling when
+    that differs from the field's post-pass key (``filter_keys``). A filter whose field is
+    not in the result and cannot be added is a denial: upstream would drop the row or, by
+    bare-name fallback, read another object's field of the same name.
     """
-    objects = {object_name(m).lower() for m in ins.models}
+    root_obj = object_name(root)
+    lowered = {presented.lower(): key for key, presented in key_map.items()}
     extra: list[str] = []
     keys: dict[str, str] = {}
     for rf in row_filters:
         qualifier, _, leaf = rf.field.rpartition(".")
         name = _root_filter_field(rf, root)
         if name is not None:
-            if rf.field in base:
-                continue  # the caller's own key for that field (no shadow can reach here)
-            if name not in base and name not in extra:
-                extra.append(name)
-            if rf.field != name:
-                keys[rf.field] = name
-            continue
-        if not qualifier or qualifier.lower() not in objects:
-            continue
-        if qualifier.lower() == object_name(root).lower():
-            continue
-        matches = [
-            key
-            for key, ref in ins.joined.items()
-            if object_name(ref.model).lower() == qualifier.lower()
-            and ref.name.lower() == leaf.lower()
-        ]
-        if not matches:
-            return extra, keys, FILTER_NOT_IN_RESULT.format(field=rf.field)
-        if rf.field not in matches:
-            keys[rf.field] = matches[0]
+            target = f"{root_obj}.{name}"
+            caller = lowered.get(target.lower())
+            if caller is None:
+                caller = name
+                extra.append(caller)
+                key_map[caller] = target
+                lowered[target.lower()] = caller
+        else:
+            caller = lowered.get(f"{qualifier}.{leaf}".lower()) if qualifier else None
+            if caller is None:
+                return extra, keys, FILTER_NOT_IN_RESULT.format(field=rf.field)
+        if key_map[caller] != rf.field:
+            keys[rf.field] = caller
     return extra, keys, None
 
 
@@ -363,12 +358,13 @@ def prepare_queryset(
         # A joined column reached here only if precheck_inspection found it visible.
         base = [n for n in ins.projected if n in visible or n in ins.joined]
         annotation_names = tuple(n for n in ins.projected if n in annotation_names)
-    key_map = {n: f"{object_name(ref.model)}.{ref.name}" for n, ref in ins.joined.items()}
     if not base:
         return Preparation.denied(NO_FIELDS_VISIBLE)
+    key_map = {n: f"{object_name(ref.model)}.{ref.name}" for n, ref in ins.joined.items()}
+    key_map.update({n: f"{obj}.{n}" for n in base if n in concrete})
 
     row_filters = list(policy.object_rules.row_filters or ()) if policy.object_rules else []
-    extra, filter_keys, denial = _filter_fields(ins, root, row_filters, base)
+    extra, filter_keys, denial = _filter_fields(root, row_filters, key_map)
     if denial is not None:
         return Preparation.denied(denial)
     projection = (*base, *extra)
@@ -423,28 +419,38 @@ def finalize(
     policy: EffectivePolicy,
     hash_salt: str | bytes | None,
 ) -> list[dict[str, Any]]:
-    """The post-execution pipeline (mandatory), then drop fields projected only for filters.
+    """The post-execution pipeline (mandatory), then the caller's keys and fields back.
 
-    Joined columns are presented to the pipeline as ``object.field`` so a rule on that
-    object matches them, and handed back under the key the caller asked for.
+    Model fields are presented as ``object.field`` (``key_map``) and each row filter's
+    field is copied under the filter's own spelling (``filter_keys``); afterwards the
+    copies and the fields projected only for filters (``extra_fields``) are dropped and
+    every other key is the caller's again.
     """
-    key_map, filter_keys = prep.key_map, prep.filter_keys
-    if key_map or filter_keys:
+    key_map, copies = prep.key_map, prep.filter_keys
+    if key_map or copies:
         rows = [
             {
                 **{key_map.get(k, k): v for k, v in row.items()},
-                **{k: row[c] for k, c in filter_keys.items()},
+                **{f: row[c] for f, c in copies.items()},
             }
             for row in rows
         ]
     result: list[dict[str, Any]] = apply_result_pipeline(rows, policy, hash_salt)
-    back = {v: k for k, v in key_map.items()}
-    drop = set(prep.extra_fields) | set(filter_keys)
-    if not back and not drop:
+    if not key_map and not copies and not prep.extra_fields:
         return result
-    return [
-        {back.get(k, k): v for k, v in row.items() if k in back or k not in drop} for row in result
-    ]
+    back = {v: k for k, v in key_map.items()}
+    extra = set(prep.extra_fields)
+    restored: list[dict[str, Any]] = []
+    for row in result:
+        kept: dict[str, Any] = {}
+        for k, v in row.items():
+            if k in copies:
+                continue
+            caller = back.get(k, k)
+            if caller not in extra:
+                kept[caller] = v
+        restored.append(kept)
+    return restored
 
 
 def _reslice(qs: Any, low: int, high: int) -> Any:

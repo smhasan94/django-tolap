@@ -30,6 +30,14 @@ Release it as `django-tolap` 0.2.0 when ready: bump `version` in
 The release workflow does the rest (`CONTRIBUTING.md` "Releasing"). The workflow has not run
 for real yet; watch its first run.
 
+**Waits on the owner.** One decision from the joined-projection work, made fail-closed in
+code pending an answer: a policy row filter on an object that is not in the query at all
+(`encounters.region` on a patients-only query) is now refused as `row filter field not in
+result`. Before, upstream's post pass evaluated it against the root's column of the same
+leaf name (`region`) or, absent one, dropped every row. Alternatives: leave it to upstream
+(status quo, silently reads the wrong object), or ignore filters on absent objects (never:
+that loosens). Recommended: keep the refusal. Record in `docs/decisions.md` once answered.
+
 **Workflow.** Direct commits on `main` (owner's call after PRs #1 to #5). Branches and PRs
 return when the owner asks.
 
@@ -57,9 +65,11 @@ Regenerate the gap report with `DATABASE_URL=<postgres> make gap-report`.
 - Upstream's row-filter lookup (`_row_field_value`) hits the exact key first, then the first
   key in row order whose bare form matches. With joined columns in the row (`patients.email`
   keys) a qualified or differently-cased root filter could read the wrong object's column.
-  Both adapters resolve every filter to exactly one column of the result (root or joined,
-  case-insensitively) and copy it under the filter's own spelling (`Preparation.filter_keys`)
-  before the post pass; a filter on a joined object whose column is not projected is refused.
+  Both adapters now present every model field to the post pass under a unique
+  `object.field` key (`Preparation.key_map`), refuse a column projected twice or through an
+  alias of the root, resolve every filter to exactly one column of the result (root or
+  joined, case-insensitively) and copy it under the filter's own spelling
+  (`Preparation.filter_keys`); a filter whose column is not in the result is refused.
   Keep the property tests' encounter regions different from the patient's; equal regions
   hide this class of bug. The differential harnesses treat "denied in both modes with the
   same reason" as agreement.

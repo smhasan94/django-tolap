@@ -7,7 +7,7 @@
 - `values("related__field")` projections are accepted. The joined column is pre-checked
   against its own object's hidden and allowed fields, presented to the post pass as
   `object.field` so that object's masking rules apply, and returned under the caller's key.
-  Gap report: 0 of 48 corpus pairs now prepare.
+  Gap report: 48 of 48 corpus pairs now prepare.
 - `enforce_save`, `enforce_delete`, `enforce_update` and `enforce_queryset_delete`: the ORM
   write paths under a policy, through upstream `validate_write` with the target row read
   under the policy first. Fail closed: one unwritable field or one invisible target row

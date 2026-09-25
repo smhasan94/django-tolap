@@ -284,7 +284,7 @@ Measured on 48 (QuerySet, policy) pairs from a corpus of realistic QuerySets
 | Refused (Django names every column, so a hidden column anywhere on the model refuses the query) | 18 |
 | Rewritten | 30 |
 | Rewritten SQL executes as-is (`str(query)` interpolates parameters unquoted) | 16 |
-| django-tolap prepares the same QuerySet | 0 |
+| django-tolap prepares the same QuerySet | 48 |
 
 None of that is a defect in upstream, which was never built for ORM-rendered SQL. It is the
 gap. The report has a second table for SQLAlchemy statements compiled with literal binds

@@ -11,11 +11,14 @@ masked, how many results. `django-tolap` brings that to Django:
 - **ORM-native pushdown.** Row filters become `Q` objects, the result limit becomes a slice,
   hidden columns leave the `SELECT`. The database does the filtering; excluded rows never cross
   the wire. Proven equal to post-pass-only with upstream's fixtures and property tests.
-- **Policy store in Django admin** (coming in the next epic), a DRF mixin, and a tool
-  decorator.
+- **Policy store in Django admin.** Definitions and assignments are models; the admin
+  validates bodies with upstream's own deserializer, warns about fields your models lack,
+  previews what a user resolves to, and keeps an audit log. Resolution and merging are
+  upstream's `resolve()`, not a reimplementation.
+- A DRF mixin and a tool decorator (next epic).
 
-Status: **v0.1 in progress.** Epic 1 (QuerySet enforcement core) is done. See
-[`docs/03-epics.md`](docs/03-epics.md).
+Status: **v0.1 in progress.** Epics 1 (QuerySet enforcement) and 2 (store, admin, contexts)
+are done. See [`docs/03-epics.md`](docs/03-epics.md).
 
 ## Install
 
@@ -29,12 +32,16 @@ This pulls `tolap-core` and `tolap-store` from PyPI. Python 3.11+, Django 5.2/6.
 
 ## Quickstart
 
-Add the app and a signing key:
+Add the app, a signing key, and migrate:
 
 ```python
 # settings.py
 INSTALLED_APPS += ["django_tolap"]
 TOLAP = {"SIGNING_KEY": "change-me"}   # any secret; treat it like SECRET_KEY
+```
+
+```bash
+python manage.py migrate django_tolap
 ```
 
 Given a model such as
@@ -51,18 +58,20 @@ class Patient(models.Model):
         db_table = "patients"
 ```
 
-write a policy, sign it, and enforce it on a QuerySet:
+author a policy and assign it. In Django admin (`/admin/django_tolap/`) paste the JSON
+below into a new policy definition and add an assignment for user `alice`, or do the same
+from a shell:
 
 <!-- quickstart:start -->
 ```python
-from django.conf import settings
-from tolap_core import build_security_context, deserialize_effective_policy, sign_context
-
-from django_tolap import enforce
+from django_tolap import enforce, issue_context
+from django_tolap.store import DjangoPolicyStore
 from clinic.models import Patient
 
-policy = deserialize_effective_policy({
+store = DjangoPolicyStore()
+store.save_definition_json({
     "version": "1.0",
+    "name": "analyst",
     "permissions": {"canQuery": True, "readOnly": True},
     "objectRules": {
         "allowedObjects": ["patients"],
@@ -74,10 +83,10 @@ policy = deserialize_effective_policy({
     },
     "limits": {"maxResults": 500},
 })
-context = sign_context(
-    build_security_context("alice", "clinic", [policy]), settings.TOLAP["SIGNING_KEY"]
-)
+store.assign("analyst", user_id="alice", tenant_id="clinic", granted_by="admin", reason="demo")
 
+# In the tool: resolve (merge, most-restrictive-wins), sign, enforce.
+context = issue_context("alice", "clinic", "db:clinic:patients")
 rows = enforce(Patient.objects.filter(status="active"), context)
 print(rows)
 ```
@@ -97,6 +106,10 @@ LIMIT 500
 as a SHA-256 pseudonym. Then TOLAP's own post-execution pipeline ran over the rows. That pass
 is the security boundary and always runs; the pushdown only reduces what the database
 produces.
+
+Every definition, assignment and resolution lands in the audit log (also in admin). The
+"Resolve preview" button on the definitions list shows what a user resolves to. Groups map
+to Django groups by default (`TOLAP["IDENTITY_RESOLVER"]` to change that).
 
 ## What upstream already does, and what this adds
 

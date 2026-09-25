@@ -9,7 +9,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 | Epic | Title | Status |
 | --- | --- | --- |
 | E1 | QuerySet enforcement core (installable, demoable) | reviewed |
-| E2 | Django-model policy store, admin, contexts | in progress |
+| E2 | Django-model policy store, admin, contexts | done |
 | E3 | Tool helper and DRF integration | todo |
 | E4 | Differential hardening and gap measurement | todo |
 | E5 | Example app, benchmark, README, upstream issue | todo |
@@ -110,7 +110,7 @@ AC: README shows install from git, a policy dict deserialized with upstream
 
 ---
 
-## E2. Django-model policy store, admin, contexts — status: in progress
+## E2. Django-model policy store, admin, contexts — status: done
 
 Outcome: policies authored in Django admin; `issue_context()` resolves, merges (upstream),
 signs; quickstart no longer needs an in-code policy.
@@ -123,7 +123,7 @@ signs; quickstart no longer needs an in-code policy.
 | E2-S4 | Admin registration and validation | FR-4, FR-11 | E2-S2 | done |
 | E2-S5 | Audit log | FR-3 | E2-S2 | done |
 | E2-S6 | `issue_context()` and external contexts | FR-6 | E2-S2 | done |
-| E2-S7 | README quickstart on the admin store | FR-1 | E2-S4, E2-S6 | todo |
+| E2-S7 | README quickstart on the admin store | FR-1 | E2-S4, E2-S6 | done |
 
 **E2-S1 Models and migrations.**
 AC: `PolicyDefinition(name unique, body JSONField, description, priority, active,

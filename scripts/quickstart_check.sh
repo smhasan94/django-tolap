@@ -33,6 +33,7 @@ TOLAP = {"SIGNING_KEY": "change-me"}
 PY
 python manage.py makemigrations clinic -v 0
 python manage.py migrate -v 0
+python manage.py check
 python manage.py shell -c "
 from clinic.models import Patient
 Patient.objects.create(full_name='John Smith', email='john@example.com', ssn='111-22-3333', region='us-east', status='active')

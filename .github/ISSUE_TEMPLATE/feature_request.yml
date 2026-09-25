@@ -1,0 +1,30 @@
+name: Feature request
+description: A new pushdown rule, vendor, integration or API.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: The tool, query shape and policy involved. A concrete example beats a general description.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: What happens today
+      description: A refusal, a filter left to the post pass, an API that does not fit.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Optional. For pushdown rules, say why SQL and the post pass would return the same rows on that database.
+  - type: checkboxes
+    id: upstream
+    attributes:
+      label: Scope check
+      options:
+        - label: This is about the Django or SQLAlchemy adapter, not the TOLAP policy schema or SDK (those go to awslabs/tolap).
+          required: true

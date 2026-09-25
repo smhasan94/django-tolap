@@ -1,5 +1,12 @@
 # django-tolap
 
+[![CI](https://github.com/smhasan94/django-tolap/actions/workflows/ci.yml/badge.svg)](https://github.com/smhasan94/django-tolap/actions/workflows/ci.yml)
+[![PyPI: django-tolap](https://img.shields.io/pypi/v/django-tolap?label=django-tolap)](https://pypi.org/project/django-tolap/)
+[![PyPI: sqlalchemy-tolap](https://img.shields.io/pypi/v/sqlalchemy-tolap?label=sqlalchemy-tolap)](https://pypi.org/project/sqlalchemy-tolap/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://github.com/smhasan94/django-tolap/blob/main/packages/django-tolap/pyproject.toml)
+[![Django 5.2 to 6.1](https://img.shields.io/badge/django-5.2%20%7C%206.0%20%7C%206.1-0C4B33)](https://github.com/smhasan94/django-tolap/blob/main/.github/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
+
 **TOLAP policies managed in Django admin and enforced on your QuerySets.**
 
 [TOLAP](https://github.com/awslabs/tolap) (Tool-Object Level Access Protocol, AWS, Apache-2.0)
@@ -282,6 +289,9 @@ pushdown but not the checks or the post pass, and returns the same rows.
 - [`docs/01-overview.md`](docs/01-overview.md): problem, landscape, design, threat model
 - [`docs/02-prd.md`](docs/02-prd.md): requirements
 - [`docs/decisions.md`](docs/decisions.md): every decision and why
+- [`CONTRIBUTING.md`](CONTRIBUTING.md): development setup and how changes are checked
+- [`SECURITY.md`](SECURITY.md): reporting a vulnerability
+- [`CHANGELOG.md`](CHANGELOG.md)
 
 ## License
 

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/smhasan94/django-tolap/security/advisories/new
+    about: Report privately. Do not open a public issue for a suspected data leak.
+  - name: TOLAP protocol, schema or SDK
+    url: https://github.com/awslabs/tolap/issues
+    about: Policy format, resolution, masking semantics and the tolap-* packages are upstream's.

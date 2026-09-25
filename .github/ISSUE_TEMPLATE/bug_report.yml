@@ -1,0 +1,51 @@
+name: Bug report
+description: Wrong rows, a refusal that should not happen, or an error.
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - django-tolap
+        - sqlalchemy-tolap
+        - both / not sure
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Package, Python, Django or SQLAlchemy, tolap-core, database vendor and version.
+      placeholder: django-tolap 0.1.0, Python 3.13, Django 6.0, tolap-core 1.0.0, PostgreSQL 17
+    validations:
+      required: true
+  - type: textarea
+    id: policy
+    attributes:
+      label: Policy
+      description: The resolved policy JSON, or the definitions and assignment that produce it. Redact real identifiers.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: query
+    attributes:
+      label: QuerySet or Select
+      description: The statement handed to `enforce`, and the model or table definition it touches.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected and what happened
+      description: If pushdown returned different rows from `mode="postOnly"`, say so; that is the most important bug class here.
+    validations:
+      required: true
+  - type: textarea
+    id: sql
+    attributes:
+      label: SQL emitted
+      description: Optional. `str(qs.query)` or the compiled statement, and `Preparation.unpushable_filters` if you have it.
+      render: sql

@@ -73,7 +73,7 @@ def test_annotation_upper_email_sources() -> None:
 
 
 def test_values_pk_alias() -> None:
-    assert inspect(Patient.objects.values("pk")).projected == ("id",)
+    assert inspect(Patient.objects.values("pk")).projected == ("pk",)  # the caller's key
 
 
 def test_values_empty_means_all() -> None:
@@ -170,3 +170,24 @@ def test_dotted_projection_key_is_refused() -> None:
                 "id", "encounters.status"
             )
         )
+
+
+@pytest.mark.parametrize(
+    "qs_factory",
+    [
+        lambda: Patient.objects.values("id", "encounters__patient__email"),
+        lambda: Encounter.objects.values("patient__id", "patient__pk"),
+        lambda: Patient.objects.values(
+            "encounters__region", "encounters__diagnoses__encounter__region"
+        ),
+        lambda: Patient.objects.values("id", "pk"),
+    ],
+    ids=["root-again", "column-twice", "second-relation", "pk-twice"],
+)
+def test_joined_projection_refused(qs_factory) -> None:  # type: ignore[no-untyped-def]
+    with pytest.raises(Uninspectable):
+        inspect(qs_factory())
+
+
+def test_pk_keeps_the_callers_key() -> None:
+    assert inspect(Patient.objects.values("pk", "region")).projected == ("pk", "region")

@@ -28,9 +28,10 @@
   not in result`), whether its object is joined or absent. A projection that reaches the
   root object again (`referrer__region`), reaches one object by two relations, or repeats
   a joined column (object names compared, so a proxy model counts as its concrete model),
-  keys containing a dot, and annotations named like a root field in any case are refused. The property test now
-  gives every encounter a region other than its patient's, which is what catches this
-  class.
+  keys containing a dot, and annotations named like a root field in any case are refused.
+  `values("pk")` keeps the caller's `pk` key (it came back as the field name before). The
+  property test now gives every encounter a region other than its patient's, which is
+  what catches this class.
 - `values("related__field")` projections are accepted. The joined column is pre-checked
   against its own object's hidden and allowed fields, presented to the post pass as
   `object.field` so that object's masking rules apply, and returned under the caller's key.
@@ -68,6 +69,11 @@
   spelling (see the django-tolap fix above), so a column of another table can never answer
   for them; a filter whose column is not in the result is refused. Same differential proof,
   on every CI vendor, with encounter regions that differ from their patient's.
+
+### both
+
+- A row-filter string value containing a NUL byte is never pushed (PostgreSQL cannot bind
+  it as text); the post pass evaluates it, where it matches nothing stored.
 
 ## 0.1.1 — 2026-09-25 (django-tolap only)
 

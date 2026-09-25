@@ -318,3 +318,16 @@ def test_callers_own_key_for_a_filtered_field_is_kept(seeded: None) -> None:
         enforce(Patient.objects.annotate(REGION=F("region")).values("id", "REGION"), signed(p))
     rows = enforce(Patient.objects.values("id", "region").order_by("id"), signed(p))
     assert rows == [{"id": 1, "region": "us-east"}, {"id": 3, "region": "us-east"}]
+
+
+def test_pk_projection_round_trips(seeded: None) -> None:
+    p = effective_policy(
+        {
+            "permissions": {"canQuery": True},
+            "objectRules": {
+                "rowFilters": [{"field": "patients.id", "operator": "equals", "value": 3}]
+            },
+        }
+    )
+    rows = enforce(Patient.objects.values("pk", "region"), signed(p))
+    assert rows == [{"pk": 3, "region": "us-east"}]

@@ -82,7 +82,9 @@ def value_fits(kind: Kind, value: Any) -> bool:
     if isinstance(value, bool):
         return kind == "bool"
     if kind == "str":
-        return isinstance(value, str)
+        # A NUL byte cannot be bound as a text parameter on PostgreSQL (and can never match a
+        # stored value there); the post pass evaluates such a value instead.
+        return isinstance(value, str) and "\x00" not in value
     if kind == "int":
         return isinstance(value, int)
     if kind == "float":
@@ -182,7 +184,7 @@ def compile_filter(
         return col.between(bounds[0], bounds[1])
 
     if op in (FilterOperator.like, FilterOperator.not_like):
-        if kind != "str" or not rules.like or not isinstance(rf.value, str):
+        if kind != "str" or not rules.like or not value_fits("str", rf.value):
             return None
         if len(rf.value) > MAX_LIKE_PATTERN_LENGTH:
             return None

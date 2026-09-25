@@ -95,7 +95,9 @@ def value_fits(kind: Kind, value: Any) -> bool:
     if isinstance(value, bool):
         return kind == "bool"
     if kind == "str":
-        return isinstance(value, str)
+        # A NUL byte cannot be bound as a text parameter on PostgreSQL (and can never match a
+        # stored value there); the post pass evaluates such a value instead.
+        return isinstance(value, str) and "\x00" not in value
     if kind == "int":
         return isinstance(value, int)
     if kind == "float":
@@ -192,7 +194,7 @@ def compile_filter(rf: RowFilter, model: type[Model], vendor: str) -> Q | None:
         return Q(**{f"{name}__range": (bounds[0], bounds[1])})
 
     if op in (FilterOperator.like, FilterOperator.not_like):
-        if kind != "str" or not rules.like or not isinstance(rf.value, str):
+        if kind != "str" or not rules.like or not value_fits("str", rf.value):
             return None
         if len(rf.value) > MAX_LIKE_PATTERN_LENGTH:
             return None
@@ -358,12 +360,19 @@ def prepare_queryset(
         base = list(visible)
     else:
         # A joined column reached here only if precheck_inspection found it visible.
-        base = [n for n in ins.projected if n in visible or n in ins.joined]
+        pk = root._meta.pk.name
+        base = [
+            n
+            for n in ins.projected
+            if n in visible or n in ins.joined or (n == "pk" and pk in visible)
+        ]
         annotation_names = tuple(n for n in ins.projected if n in annotation_names)
     if not base:
         return Preparation.denied(NO_FIELDS_VISIBLE)
     key_map = {n: f"{object_name(ref.model)}.{ref.name}" for n, ref in ins.joined.items()}
     key_map.update({n: f"{obj}.{n}" for n in base if n in concrete})
+    if "pk" in base:
+        key_map["pk"] = f"{obj}.{root._meta.pk.name}"
 
     row_filters = list(policy.object_rules.row_filters or ()) if policy.object_rules else []
     extra, filter_keys, key_map, denial = _filter_fields(root, row_filters, key_map)

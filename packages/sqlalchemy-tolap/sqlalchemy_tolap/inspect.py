@@ -61,10 +61,16 @@ class _Walker:
     def __init__(self) -> None:
         self.refs: set[ColRef] = set()
         self.tables: dict[str, Table] = {}
+        self.leaves: list[str] = []  # post-pass table name of every FROM leaf walked
 
     def table(self, table: Table) -> None:
         table = canonical(table)
         self.tables[table.name] = table
+
+    def leaf(self, table: Table) -> None:
+        """A Table or Alias in the FROM list itself, as opposed to a column reference."""
+        self.table(table)
+        self.leaves.append(canonical(table).name)
 
     def froms(self, froms: Iterable[FromClause]) -> None:
         for f in froms:
@@ -72,14 +78,14 @@ class _Walker:
 
     def from_(self, f: FromClause) -> None:
         if isinstance(f, Table):
-            self.table(f)
+            self.leaf(f)
         elif isinstance(f, Join):
             self.from_(f.left)
             self.from_(f.right)
             if f.onclause is not None:
                 self.nodes(f.onclause)
         elif isinstance(f, Alias) and isinstance(f.element, Table):
-            self.table(f.element)
+            self.leaf(f.element)
         else:
             raise Uninspectable(f"{type(f).__name__} in FROM is not supported")
 
@@ -92,8 +98,10 @@ class _Walker:
             raise Uninspectable(f"{type(node).__name__} is not supported")
         if isinstance(node, Select):
             # A nested select: its FROM list must be inspectable too (iterate does not
-            # visit FROM tables as nodes).
-            self.froms(node.get_final_froms())
+            # visit FROM tables as nodes), but it is not part of the statement's own FROM.
+            inner = _Walker()
+            inner.tables = self.tables
+            inner.froms(node.get_final_froms())
             return
         if isinstance(node, Column):
             table = base_table(node)
@@ -119,31 +127,19 @@ def _entity_tables(stmt: Select[Any]) -> tuple[list[Table], int]:
     return tables, len(raw)
 
 
-def _top_level_tables(froms: Iterable[FromClause]) -> list[Table]:
-    """The tables of the statement's own FROM list, one entry per Table or Alias leaf."""
-    tables: list[Table] = []
-    for f in froms:
-        if isinstance(f, Join):
-            tables.extend(_top_level_tables((f.left, f.right)))
-        elif isinstance(f, Table):
-            tables.append(canonical(f))
-        elif isinstance(f, Alias) and isinstance(f.element, Table):
-            tables.append(canonical(f.element))
-    return tables
-
-
-def _each_table_once(froms: Iterable[FromClause]) -> None:
-    """Refuse a table that appears twice in FROM (a self-join, two aliases of one table).
+def _each_table_once(leaves: list[str]) -> None:
+    """Refuse a post-pass table name that two FROM leaves share.
 
     The post pass sees every plain column as ``table.column``, so a second copy of a table
-    would be indistinguishable from the first, and a row filter on that table could only be
-    evaluated against one of them.
+    (a self-join, two aliases of one table, two schemas' tables of one name) would be
+    indistinguishable from the first, and a row filter on that name could only be evaluated
+    against one of them.
     """
     seen: set[str] = set()
-    for table in _top_level_tables(froms):
-        if table.name in seen:
-            raise Uninspectable(f"table {table.name} appears twice in FROM")
-        seen.add(table.name)
+    for name in leaves:
+        if name in seen:
+            raise Uninspectable(f"two FROM entries share the post-pass name {name}")
+        seen.add(name)
 
 
 def _once(columns: dict[str, ColRef], key: str, ref: ColRef) -> None:
@@ -183,7 +179,7 @@ def inspect(stmt: Any) -> Inspection:
     if not froms:
         raise Uninspectable("statement has no FROM")
     walker.froms(froms)
-    _each_table_once(froms)
+    _each_table_once(walker.leaves)  # the statement's own FROM list, walked just above
     root_from: FromClause = froms[0]
     while isinstance(root_from, Join):
         root_from = root_from.left

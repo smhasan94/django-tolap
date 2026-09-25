@@ -179,3 +179,19 @@ def test_relation_field_declined() -> None:
 
 def test_isnull_pushed_for_any_field_kind() -> None:
     assert compile_filter(rf("date_of_birth", "isNull"), Patient, "postgresql") is not None
+
+
+@pytest.mark.parametrize("vendor", sorted(VENDORS))
+@pytest.mark.parametrize("operator", ["equals", "in", "like", "greaterThan", "between"])
+def test_nul_byte_values_are_never_pushed(vendor: str, operator: str) -> None:
+    """PostgreSQL cannot bind a NUL byte as text; the post pass evaluates it instead."""
+    value = "us\x00east"
+    rf = {"field": "region", "operator": operator}
+    if operator in ("in", "between"):
+        rf["values"] = [value, "us-east"]
+    else:
+        rf["value"] = value
+    policy = effective_policy(
+        {"permissions": {"canQuery": True}, "objectRules": {"rowFilters": [rf]}}
+    )
+    assert compile_filter(policy.object_rules.row_filters[0], Patient, vendor) is None

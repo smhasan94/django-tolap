@@ -114,3 +114,21 @@ def test_unknown_dialect_and_type_mismatches() -> None:
         compile_filter(rf("patient_id", "equals", 1), encounters, "postgresql") is None
     )  # FK column
     assert compile_filter(rf("date_of_birth", "isNull"), patients, "postgresql") is not None
+
+
+@pytest.mark.parametrize("dialect", sorted(DIALECTS))
+@pytest.mark.parametrize("operator", ["equals", "in", "like", "greaterThan", "between"])
+def test_nul_byte_values_are_never_pushed(dialect: str, operator: str) -> None:
+    """PostgreSQL cannot bind a NUL byte as text; the post pass evaluates it instead."""
+    from tests.harness.fixtures import effective_policy
+
+    value = "us\x00east"
+    rf = {"field": "region", "operator": operator}
+    if operator in ("in", "between"):
+        rf["values"] = [value, "us-east"]
+    else:
+        rf["value"] = value
+    policy = effective_policy(
+        {"permissions": {"canQuery": True}, "objectRules": {"rowFilters": [rf]}}
+    )
+    assert compile_filter(policy.object_rules.row_filters[0], patients, dialect) is None

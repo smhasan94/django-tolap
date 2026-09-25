@@ -179,21 +179,23 @@ def _related_path(root: type[Model], path: str) -> FieldRef | None:
     return FieldRef(model=model, name=leaf_field.name)
 
 
-def _joined_once(root: type[Model], name: str, ref: FieldRef, joined: dict[str, FieldRef]) -> None:
+def _joined_once(
+    root_obj: str, name: str, ref: FieldRef, joined: dict[str, tuple[str, FieldRef]]
+) -> None:
     """Refuse a joined column the post pass could not tell from another.
 
     Every column is presented as ``object.field`` (object names, not model classes: a proxy
     model shares its concrete model's name), so a relation back to the root object, the
     same object reached by two relation paths, or the same column projected twice would
     collide on that key, and a row filter on the object could only be evaluated against
-    one copy.
+    one copy. ``joined`` carries each earlier key's lowered object name.
     """
     obj = object_name(ref.model).lower()
-    if obj == object_name(root).lower():
+    if obj == root_obj:
         raise Uninspectable(f"projection of {name!r} reaches the root object again")
     path = name.rsplit("__", 1)[0]
-    for other, seen in joined.items():
-        if object_name(seen.model).lower() != obj:
+    for other, (seen_obj, seen) in joined.items():
+        if seen_obj != obj:
             continue
         if other.rsplit("__", 1)[0] != path:
             raise Uninspectable(f"projection of {name!r} reaches {obj} by a second relation")
@@ -219,18 +221,19 @@ def _projection(
     if fields is not None:
         if not fields:
             return None, joined
+        if "pk" in fields and root._meta.pk.name in fields:
+            raise Uninspectable(f"projection of 'pk' repeats {root._meta.pk.name!r}")
+        root_obj = object_name(root).lower()
+        seen: dict[str, tuple[str, FieldRef]] = {}
         names: list[str] = []
         extra = [a for a in query.annotation_select if a not in fields]
         for name in (*fields, *extra):
-            if name in query.annotations:
-                names.append(name)
-            elif name == "pk":
-                names.append(root._meta.pk.name)
-            elif name in concrete:
-                names.append(name)
+            if name in query.annotations or name == "pk" or name in concrete:
+                names.append(name)  # the caller's key; ``pk`` is mapped at prepare time
             elif "__" in name and (ref := _related_path(root, name)) is not None:
-                _joined_once(root, name, ref, joined)
+                _joined_once(root_obj, name, ref, seen)
                 names.append(name)
+                seen[name] = (object_name(ref.model).lower(), ref)
                 joined[name] = ref
             else:
                 raise Uninspectable(f"projection of {name!r} is not a model field")

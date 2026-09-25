@@ -15,6 +15,7 @@ from django.core.exceptions import ImproperlyConfigured
 DEFAULTS: dict[str, Any] = {
     "HASH_SALT": None,
     "IDENTITY_RESOLVER": None,
+    "IDENTITY": None,
     "OBJECT_NAME": "db_table",
     "CONTEXT_TTL": 3600,
     "SOURCE_PREFIX": None,

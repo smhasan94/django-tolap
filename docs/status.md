@@ -19,9 +19,10 @@ key cannot be created on MySQL, fixed by migration `0002` (see `CHANGELOG.md`, u
 -e MYSQL_DATABASE=tolap -p 3307:3306 mysql:8.4`, then
 `DATABASE_URL=mysql://root:root@127.0.0.1:3307/tolap uv run pytest -q`.
 
-**Waiting on the owner.** Upload `django-tolap` 0.1.1 (the MySQL fix; prepared, built and
-twine-checked in `dist/`), then tag `v0.1.1` and create the release. `sqlalchemy-tolap` stays
-at 0.1.0. Next release: create project-scoped PyPI tokens
+**Released.** `django-tolap` 0.1.1 on PyPI 2026-09-25, tagged `v0.1.1`, fresh install verified
+with migration `0002` present. `sqlalchemy-tolap` stays at 0.1.0.
+
+**Waiting on the owner.** Nothing. Next release: create project-scoped PyPI tokens
 or set up trusted publishing before uploading.
 
 **How to resume.** `uv sync && make check` (SQLite). PostgreSQL:

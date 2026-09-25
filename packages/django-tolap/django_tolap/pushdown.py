@@ -251,6 +251,11 @@ class Preparation:
     key_map: dict[str, str] = dataclass_field(default_factory=dict)
     """Joined projection keys (``patient__email``) and the ``object.field`` name the post
     pass sees them under (``patients.email``), so its rules match the right object."""
+    filter_keys: dict[str, str] = dataclass_field(default_factory=dict)
+    """Row-filter fields spelled other than the root field they read (``patients.region``,
+    ``REGION``) and that field. Each is copied into the row under the filter's own spelling
+    so upstream's exact lookup hits and its bare-name fallback never reads another object's
+    field of the same name; stripped after the post pass."""
     max_results: int | None = None
     mode: EnforcementMode = EnforcementMode.rewrite_and_post
 
@@ -320,10 +325,15 @@ def prepare_queryset(
 
     row_filters = list(policy.object_rules.row_filters or ()) if policy.object_rules else []
     extra: list[str] = []
+    filter_keys: dict[str, str] = {}
     for rf in row_filters:
         name = _root_filter_field(rf, root)
-        if name is not None and name not in base and name not in extra:
+        if name is None:
+            continue
+        if name not in base and name not in extra:
             extra.append(name)
+        if rf.field != name:
+            filter_keys[rf.field] = name
     projection = (*base, *extra)
 
     vendor = connections[qs.db].vendor
@@ -364,6 +374,7 @@ def prepare_queryset(
         projection=(*projection, *annotation_names),
         extra_fields=tuple(extra),
         key_map=key_map,
+        filter_keys=filter_keys,
         max_results=max_results,
         mode=resolved_mode,
     )
@@ -380,16 +391,18 @@ def finalize(
     Joined columns are presented to the pipeline as ``object.field`` so a rule on that
     object matches them, and handed back under the key the caller asked for.
     """
+    if prep.filter_keys:
+        rows = [{**row, **{k: row[c] for k, c in prep.filter_keys.items()}} for row in rows]
     if prep.key_map:
         rows = [{prep.key_map.get(k, k): v for k, v in row.items()} for row in rows]
     result: list[dict[str, Any]] = apply_result_pipeline(rows, policy, hash_salt)
     if prep.key_map:
         back = {v: k for k, v in prep.key_map.items()}
         result = [{back.get(k, k): v for k, v in row.items()} for row in result]
-    if not prep.extra_fields:
+    drop = set(prep.extra_fields) | set(prep.filter_keys)
+    if not drop:
         return result
-    extra = set(prep.extra_fields)
-    return [{k: v for k, v in row.items() if k not in extra} for row in result]
+    return [{k: v for k, v in row.items() if k not in drop} for row in result]
 
 
 def _reslice(qs: Any, low: int, high: int) -> Any:

@@ -89,6 +89,8 @@ def test_limit_offset() -> None:
         lambda: select(Patient.status, Encounter.status).join(Encounter),
         lambda: select(Patient.id, Encounter.region).join(Encounter),
         lambda: select(Patient.id, Encounter.status.label("region")).join(Encounter),
+        lambda: select(Patient.id, Encounter.status.label("REGION")).join(Encounter),
+        lambda: select(Patient.id, func.upper(Patient.full_name).label("encounters.status")),
         lambda: select(func.count(Patient.id)),
     ],
     ids=[
@@ -103,6 +105,8 @@ def test_limit_offset() -> None:
         "duplicate-key",
         "joined-shadows-root",
         "label-shadows-root",
+        "label-shadows-root-case",
+        "dotted-key",
         "unlabelled",
     ],
 )

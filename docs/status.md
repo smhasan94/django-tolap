@@ -54,4 +54,10 @@ Regenerate the gap report with `DATABASE_URL=<postgres> make gap-report`.
 - Upstream fixtures are pinned to commit `e5c92107…` (`tests/fixtures/upstream/SOURCE`).
 - Upstream's field matcher lets a bare or table-wildcard rule (`encounters.*`) match any
   object's leaf key, by design; over-masks, never under-masks.
+- Upstream's row-filter lookup (`_row_field_value`) hits the exact key first, then the first
+  key in row order whose bare form matches. With joined columns in the row (`patients.email`
+  keys) a qualified or differently-cased root filter could read the wrong object's column.
+  Both adapters copy such a filter's field into the row under the filter's own spelling
+  (`Preparation.filter_keys`) before the post pass. Keep the property tests' encounter regions
+  different from the patient's; equal regions hide this class of bug.
 - `CLAUDE.md` is untracked on purpose; it is still the project brief.

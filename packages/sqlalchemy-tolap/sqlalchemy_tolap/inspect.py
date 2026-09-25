@@ -126,7 +126,12 @@ def _no_shadow(key: str, ref: ColRef | None, root: Table) -> None:
     the post pass, and a filtered root column added to the projection would collide with
     it. Django refuses the same shadowing.
     """
-    if key in root.columns and ref != ColRef(root.name, key):
+    if "." in key:
+        # Qualified keys are what the post pass sees renamed columns under (``table.column``).
+        raise Uninspectable(f"projection key {key!r} contains a dot")
+    root_names = {c.name.lower(): c.name for c in root.columns}
+    own = root_names.get(key.lower())
+    if own is not None and ref != ColRef(root.name, own):
         raise Uninspectable(f"projection key {key!r} shadows a column of {root.name}; label it")
 
 

@@ -191,6 +191,9 @@ def _projection(
         names: list[str] = []
         extra = [a for a in query.annotation_select if a not in fields]
         for name in (*fields, *extra):
+            if "." in name:
+                # Qualified keys are what the post pass sees joined columns under.
+                raise Uninspectable(f"projection key {name!r} contains a dot")
             if name in query.annotations:
                 names.append(name)
             elif name == "pk":

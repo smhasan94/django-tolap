@@ -249,3 +249,30 @@ def test_allowed_fields_on_root_only_denies_joined_column(seeded: None) -> None:
     )
     with pytest.raises(TolapDenied):
         enforce(Encounter.objects.values("id", "patient__region"), signed(p))
+
+
+def test_qualified_root_filter_is_not_intercepted_by_a_joined_key(seeded: None) -> None:
+    """``patients.region`` is read from the patient even when a joined ``encounters.region``
+    precedes it in the row (upstream falls back to a bare-name match over the row's keys)."""
+    import datetime as dt
+
+    from django_tolap.pushdown import EnforcementMode
+
+    when = dt.datetime(2026, 1, 1, tzinfo=dt.UTC)
+    Encounter.objects.create(patient_id=1, occurred_at=when, region="us-west", status="x")
+    Encounter.objects.create(patient_id=5, occurred_at=when, region="us-east", status="x")
+    p = effective_policy(
+        {
+            "permissions": {"canQuery": True},
+            "objectRules": {
+                "rowFilters": [
+                    {"field": "patients.region", "operator": "equals", "value": "us-east"}
+                ]
+            },
+        }
+    )
+    qs = Patient.objects.values("encounters__region", "id").order_by("id")
+    results = [enforce(qs, signed(p), mode=mode) for mode in EnforcementMode]
+    for rows in results:
+        assert rows and {r["id"] for r in rows} <= {1, 3}
+    assert results[0] == results[1]

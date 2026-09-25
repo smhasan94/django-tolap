@@ -14,6 +14,14 @@
   means no policy and an unchanged serializer (`TolapViewSetMixin.tolap_policy_or_none()`).
   `TolapSerializerMixin` now hides by the column a field reads (`source`) and by the owning
   serializer's `Meta.model`.
+- **Fix, fail-open:** a row filter spelled other than the root field it reads
+  (`patients.region`, `REGION`) could be evaluated against a joined column of the same name
+  when `values("encounters__region", ...)` put that column before the root field in the
+  row: upstream's post pass looks the filter's field up by exact key first, then by a
+  bare-name match over the row's keys in order. Each such filter field is now copied into the
+  row under its own spelling before the post pass, so the exact lookup always hits, and
+  stripped after. Projection keys containing a dot are refused. The property test now gives
+  every encounter a region other than its patient's, which is what catches this class.
 - `values("related__field")` projections are accepted. The joined column is pre-checked
   against its own object's hidden and allowed fields, presented to the post pass as
   `object.field` so that object's masking rules apply, and returned under the caller's key.
@@ -42,8 +50,12 @@
   are accepted in the projection. Each is pre-checked against its own table's hidden and
   allowed fields, presented to the post pass as `table.column` so that table's masking
   applies, and returned under the caller's key. A projection key used twice, or named like a
-  root column other than itself, is refused with `label it`, since the row key would collide
-  with a root column the post pass may need. Same differential proof, on every CI vendor.
+  root column other than itself (compared case-insensitively), or containing a dot, is
+  refused with `label it`, since the row key would collide with a root column the post pass
+  may need. A row filter spelled other than the root column it reads is copied into the row
+  under its own spelling before the post pass (see the django-tolap fix above), so a joined
+  column of the same name can never answer for it. Same differential proof, on every CI
+  vendor, with encounter regions that differ from their patient's.
 
 ## 0.1.1 — 2026-09-25 (django-tolap only)
 

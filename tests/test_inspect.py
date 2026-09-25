@@ -159,3 +159,14 @@ def test_unknown_joined_paths_are_djangos_error(name: str) -> None:
 def test_relation_object_as_leaf_refused() -> None:
     with pytest.raises(Uninspectable):
         inspect(Encounter.objects.values("patient__encounters"))
+
+
+def test_dotted_projection_key_is_refused() -> None:
+    from django.db.models import F
+
+    with pytest.raises(Uninspectable):
+        inspect(
+            Patient.objects.annotate(**{"encounters.status": F("id")}).values(
+                "id", "encounters.status"
+            )
+        )

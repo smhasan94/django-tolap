@@ -137,7 +137,9 @@ class TestProperty:
                 {
                     "patient_id": r["id"],
                     "occurred_at": dt.datetime(2026, 1, 1),
-                    "region": r["region"] or "none",
+                    # Never the patient's own region, so a filter evaluated against the
+                    # wrong object's column changes the result.
+                    "region": "us-west" if r["region"] == "us-east" else "us-east",
                     "status": r["status"],
                 }
                 for r in rows

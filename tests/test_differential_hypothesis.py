@@ -53,7 +53,9 @@ class DifferentialProperty(TestCase):
                 Encounter(
                     patient_id=r["id"],
                     occurred_at="2026-01-01T00:00:00Z",
-                    region=r["region"] or "none",
+                    # Never the patient's own region, so a filter evaluated against the
+                    # wrong object's column changes the result.
+                    region="us-west" if r["region"] == "us-east" else "us-east",
                     status=r["status"],
                 )
                 for r in rows

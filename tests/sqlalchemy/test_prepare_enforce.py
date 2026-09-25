@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session
 
 from sqlalchemy_tolap import EnforcementMode, TolapDenied, enforce
@@ -13,7 +14,7 @@ from sqlalchemy_tolap.pushdown import DIALECTS, NO_FIELDS_VISIBLE, prepare_selec
 from tests.harness.contexts import signed
 from tests.harness.fixtures import effective_policy, us_east_filter
 from tests.sqlalchemy.conftest import SIGNING_KEY
-from tests.sqlalchemy.models import Encounter, Patient, audit_log, patients
+from tests.sqlalchemy.models import Encounter, Patient, audit_log, encounters, patients
 from tests.test_enforce import ANALYST
 
 
@@ -264,3 +265,34 @@ def test_allowed_fields_on_root_only_denies_joined_column(seeded: Session) -> No
             seeded,
             signing_key=SIGNING_KEY,
         )
+
+
+def test_qualified_root_filter_is_not_intercepted_by_a_renamed_key(seeded: Session) -> None:
+    """``patients.region`` must be read from the patient, never from a joined
+    ``encounters.region`` presented under a qualified key (upstream falls back to a
+    bare-name match over the row's keys when the exact key is absent)."""
+    when = dt.datetime(2026, 1, 1)
+    seeded.execute(
+        insert(encounters),
+        [
+            {"patient_id": 1, "occurred_at": when, "region": "us-west", "status": "x"},
+            {"patient_id": 5, "occurred_at": when, "region": "us-east", "status": "x"},
+        ],
+    )
+    p = policy(
+        {"rowFilters": [{"field": "patients.region", "operator": "equals", "value": "us-east"}]}
+    )
+    stmt = (
+        select(Encounter.region.label("er"), Patient.id)
+        .select_from(Patient)
+        .join(Encounter)
+        .order_by(Encounter.id)
+    )
+    results = [
+        enforce(stmt, signed(p), seeded, signing_key=SIGNING_KEY, mode=mode)
+        for mode in EnforcementMode
+    ]
+    for rows in results:
+        assert rows and {r["id"] for r in rows} <= {1, 3}
+        assert all(set(r) == {"er", "id"} for r in rows)
+    assert results[0] == results[1]

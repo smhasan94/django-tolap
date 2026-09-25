@@ -210,6 +210,11 @@ class Preparation:
     key_map: dict[str, str] = dataclass_field(default_factory=dict)
     """Caller keys of joined or labelled columns and the ``table.column`` name the post pass
     sees them under, so that table's rules match them."""
+    filter_keys: dict[str, str] = dataclass_field(default_factory=dict)
+    """Row-filter fields spelled other than the root column they read (``patients.region``,
+    ``REGION``) and that column. Each is copied into the row under the filter's own spelling
+    so upstream's exact lookup hits and its bare-name fallback never reads another table's
+    column of the same name; stripped after the post pass."""
     max_results: int | None = None
     mode: EnforcementMode = EnforcementMode.rewrite_and_post
 
@@ -248,25 +253,25 @@ def prepare_select(
         base: list[Any] = [by_name[n] for n in visible]
         names = list(visible)
     else:
-        base = []
-        names = []
-        for col in ins.selected:
-            # Joined and labelled columns (ins.renamed) and Labels reached here only if the
-            # pre-check found every column they read visible.
-            if isinstance(col, Column) and col.name not in ins.renamed and col.name not in visible:
-                continue
-            base.append(col)
-            names.append(col.name)
+        # Every selected element reached here only if the pre-check found the columns it
+        # reads visible, so the caller's projection is taken as is.
+        base = list(ins.selected)
+        names = [col.name for col in ins.selected]
     key_map = {key: f"{ref.table}.{ref.name}" for key, ref in ins.renamed.items()}
     if not base:
         return Preparation.denied(NO_FIELDS_VISIBLE)
 
     row_filters = list(policy.object_rules.row_filters or ()) if policy.object_rules else []
     extra: list[str] = []
+    filter_keys: dict[str, str] = {}
     for rf in row_filters:
         col = resolve_column(rf, root)
-        if col is not None and col.name not in names and col.name not in extra:
+        if col is None:
+            continue
+        if col.name not in names and col.name not in extra:
             extra.append(col.name)
+        if rf.field != col.name:
+            filter_keys[rf.field] = col.name
     for name in extra:
         base.append(by_name[name])
 
@@ -304,6 +309,7 @@ def prepare_select(
         projection=(*names, *extra),
         extra_fields=tuple(extra),
         key_map=key_map,
+        filter_keys=filter_keys,
         max_results=max_results,
         mode=resolved_mode,
     )
@@ -320,13 +326,15 @@ def finalize(
     Joined and labelled columns are presented to the pipeline as ``table.column`` so that
     table's rules match them, and handed back under the caller's key.
     """
+    if prep.filter_keys:
+        rows = [{**row, **{k: row[c] for k, c in prep.filter_keys.items()}} for row in rows]
     if prep.key_map:
         rows = [{prep.key_map.get(k, k): v for k, v in row.items()} for row in rows]
     result: list[dict[str, Any]] = apply_result_pipeline(rows, policy, hash_salt)
     if prep.key_map:
         back = {v: k for k, v in prep.key_map.items()}
         result = [{back.get(k, k): v for k, v in row.items()} for row in result]
-    if not prep.extra_fields:
+    drop = set(prep.extra_fields) | set(prep.filter_keys)
+    if not drop:
         return result
-    extra = set(prep.extra_fields)
-    return [{k: v for k, v in row.items() if k not in extra} for row in result]
+    return [{k: v for k, v in row.items() if k not in drop} for row in result]

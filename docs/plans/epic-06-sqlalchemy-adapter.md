@@ -60,3 +60,17 @@ reduced to their mapped `Table` via `inspect(entity).local_table`; projection us
 | --- | --- | --- |
 | SQLAlchemy 2.0 vs 2.1 internals (`_raw_columns`, `_where_criteria`) | Medium | Use public accessors (`whereclause`, `selected_columns`, `get_final_froms`); CI on both |
 | ORM-instance results leaking hidden attributes | Low | Always `with_only_columns` + `.mappings()` |
+
+## Updated after E1–E5 (2026-09-25)
+
+- No third shared package: ``matching.py`` is copied (parity-tested against upstream) and the
+  field-rule helpers live in ``sqlalchemy_tolap/rules.py``. The test harness is shared from
+  ``tests/harness`` (fixture loader, seed lists, strategies); the differential assertion is
+  per adapter because the executors differ.
+- SQLAlchemy does not add a null arm to negations the way Django does, so ``notEquals``,
+  ``notIn`` and ``notLike`` render ``(col <> x OR col IS NULL)`` explicitly.
+- PostgreSQL tests reuse Django's throwaway test database under schema ``tolap_sa``; SQLite
+  uses an in-memory engine on a ``StaticPool``. Nothing touches a real database.
+- Entity selects (``select(Entity)``, ``select(table)``) are the default projection; named
+  columns and labels are explicit references, as in django-tolap. Tables are normalised to
+  the MetaData-registered instance because the ORM hands out annotated copies.

@@ -13,10 +13,12 @@ members = ["packages/*"]
 
 [tool.uv.sources]
 django-tolap = { workspace = true }
+sqlalchemy-tolap = { workspace = true }
 
 [dependency-groups]
 dev = [
   "django-tolap",
+  "sqlalchemy-tolap",
   "pytest>=8.3",
   "pytest-django>=4.9",
   "hypothesis>=6.100",
@@ -48,9 +50,9 @@ known-first-party = ["django_tolap", "sqlalchemy_tolap", "tests"]
 
 [tool.mypy]
 strict = true
-files = ["packages/django-tolap/django_tolap"]
+files = ["packages/django-tolap/django_tolap", "packages/sqlalchemy-tolap/sqlalchemy_tolap"]
 plugins = ["mypy_django_plugin.main"]
-mypy_path = ["packages/django-tolap"]
+mypy_path = ["packages/django-tolap", "packages/sqlalchemy-tolap"]
 
 [[tool.mypy.overrides]]
 module = ["tolap_core.*", "tolap_store.*", "rest_framework.*"]

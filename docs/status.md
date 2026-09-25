@@ -8,7 +8,11 @@ https://github.com/awslabs/tolap/issues/31, no maintainer reply yet. CI green on
 (SQLite matrix, PostgreSQL, MySQL 8.4, quickstart, upstream-main) with a 90% line-and-branch
 coverage floor; all legs sit at 96%.
 
-**Unreleased on `main` (django-tolap, see `CHANGELOG.md` "Unreleased").**
+**Unreleased on `main` (see `CHANGELOG.md` "Unreleased").**
+- sqlalchemy-tolap: joined and labelled column projections (`select(Patient.id,
+  Encounter.occurred_at)`, `Encounter.region.label("er")`), keyed to their own table for the
+  post pass. Ships as `sqlalchemy-tolap` 0.2.0 by the same bump-and-tag flow
+  (`sqlalchemy-tolap-v0.2.0`).
 - drf-spectacular: `TolapAutoSchema`, set by the viewset mixin when installed. Per-caller
   schemas omit hidden fields and refused writes, annotate masks; public schema generation no
   longer crashes on the serializer mixin.
@@ -39,10 +43,6 @@ Desktop, `docker run -d --name tolap-mysql -e MYSQL_ROOT_PASSWORD=root -e MYSQL_
 Regenerate the gap report with `DATABASE_URL=<postgres> make gap-report`.
 
 **Backlog (in rough priority order).**
-- SQLAlchemy: projecting a non-root entity or column (`select(Patient.id, Encounter.status)`)
-  is still refused; Django's `values("related__x")` landed by presenting joined keys as
-  `object.field` to the post pass. SQLAlchemy row keys collide (`status` twice) without
-  labels, so it needs a labelling rule first (~1 day).
 - Purpose binding, delegation chains, judge: when `tolap-core` 1.1 reaches PyPI. Four merge
   scenario fixtures are skipped until then; the upstream-`main` CI leg reports drift.
 - Reply on awslabs/tolap#31 when a maintainer answers.

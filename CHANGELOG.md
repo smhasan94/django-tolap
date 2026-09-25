@@ -35,6 +35,16 @@
   literals. Refuses non-`SELECT` statements and statements reading a different table than
   `model`. Same differential proof, on every CI vendor.
 
+### sqlalchemy-tolap
+
+- Columns of a joined table (`select(Patient.id, Encounter.occurred_at)`) and labelled
+  plain columns (`Encounter.region.label("encounter_region")`, `Patient.email.label("mail")`)
+  are accepted in the projection. Each is pre-checked against its own table's hidden and
+  allowed fields, presented to the post pass as `table.column` so that table's masking
+  applies, and returned under the caller's key. A projection key used twice, or named like a
+  root column other than itself, is refused with `label it`, since the row key would collide
+  with a root column the post pass may need. Same differential proof, on every CI vendor.
+
 ## 0.1.1 — 2026-09-25 (django-tolap only)
 
 ### django-tolap

@@ -92,6 +92,8 @@ Statements rendered with `str(stmt.compile(dialect, compile_kwargs={'literal_bin
 | `scalar_subquery` | scalar subquery label | rewritten; unpushed: none | yes | pushed 1/1 filters, 7 visible cols, 2 rows fetched |
 | `in_subquery` | IN (subquery) | refused: query references fields you do not have permission to access | - | pushed 1/1 filters, 7 visible cols, 0 rows fetched |
 | `aliased` | aliased entity | rewritten; unpushed: none | yes | pushed 1/1 filters, 7 visible cols, 2 rows fetched |
+| `join_columns` | joined column | rewritten; unpushed: none | no (OperationalError) | pushed 1/1 filters, 7 visible cols, 2 rows fetched |
+| `join_label` | labelled joined column | rewritten; unpushed: none | no (OperationalError) | pushed 1/1 filters, 7 visible cols, 2 rows fetched |
 | `between_dates` | BETWEEN on dates | refused: query references fields you do not have permission to access | - | pushed 1/1 filters, 7 visible cols, 1 rows fetched |
 
 ## Policy: filter-only (SQLAlchemy)
@@ -115,4 +117,6 @@ Statements rendered with `str(stmt.compile(dialect, compile_kwargs={'literal_bin
 | `scalar_subquery` | scalar subquery label | rewritten; unpushed: none | yes | pushed 2/2 filters, 8 visible cols, 3 rows fetched |
 | `in_subquery` | IN (subquery) | rewritten; unpushed: none | yes | pushed 2/2 filters, 8 visible cols, 0 rows fetched |
 | `aliased` | aliased entity | rewritten; unpushed: none | yes | pushed 2/2 filters, 8 visible cols, 3 rows fetched |
+| `join_columns` | joined column | rewritten; unpushed: none | no (OperationalError) | pushed 2/2 filters, 8 visible cols, 3 rows fetched |
+| `join_label` | labelled joined column | rewritten; unpushed: none | no (OperationalError) | pushed 2/2 filters, 8 visible cols, 3 rows fetched |
 | `between_dates` | BETWEEN on dates | rewritten; unpushed: none | yes | pushed 2/2 filters, 8 visible cols, 2 rows fetched |

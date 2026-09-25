@@ -198,3 +198,69 @@ def test_connection_executor(seeded: Session) -> None:
         signing_key=SIGNING_KEY,
     )
     assert len(rows) == 6
+
+
+def test_joined_columns_masked_and_hidden_by_their_own_object(seeded: Session) -> None:
+    """Mirror of the Django test: ``patients.email`` masks the joined column on an
+    Encounter root, the caller's keys are preserved, a hidden joined column is refused."""
+    p = policy(
+        {
+            "fieldRules": {
+                "hiddenFields": ["patients.ssn"],
+                "maskedFields": [{"field": "patients.email", "maskType": "hash"}],
+            }
+        }
+    )
+    stmt = (
+        select(
+            Encounter.id,
+            Encounter.status,
+            Patient.email.label("patient_email"),
+            Patient.region.label("patient_region"),
+        )
+        .join(Patient)
+        .order_by(Encounter.id)
+    )
+    rows = enforce(stmt, signed(p), seeded, signing_key=SIGNING_KEY)
+    assert set(rows[0]) == {"id", "status", "patient_email", "patient_region"}
+    assert rows[0]["patient_email"] == hashlib.sha256(b"john.smith@example.com").hexdigest()[:16]
+    assert rows[0]["patient_region"] == "us-east"
+    denied = prepare_select(
+        select(Encounter.id, Patient.ssn.label("s")).join(Patient), p, dialect="sqlite"
+    )
+    assert not denied.allowed and "patients.ssn" in (denied.denial_reason or "")
+    # A labelled root column is that column: masked under the caller's key.
+    rows = enforce(
+        select(Patient.id, Patient.email.label("mail")).order_by(Patient.id),
+        signed(p),
+        seeded,
+        signing_key=SIGNING_KEY,
+    )
+    assert rows[0] == {"id": 1, "mail": hashlib.sha256(b"john.smith@example.com").hexdigest()[:16]}
+
+
+def test_bare_joined_column_with_root_filter_and_limit(seeded: Session) -> None:
+    dialect = dialect_name(seeded)
+    p = policy(
+        {"rowFilters": [us_east_filter(DIALECTS[dialect].string_equality)]},
+        limits={"maxResults": 2},
+    )
+    stmt = select(Patient.id, Encounter.occurred_at).join(Encounter).order_by(Patient.id)
+    prep = prepare_select(stmt, p, dialect=dialect)
+    assert prep.allowed and prep.projection[:2] == ("id", "occurred_at")
+    assert prep.key_map == {"occurred_at": "encounters.occurred_at"}
+    rows = enforce(stmt, signed(p), seeded, signing_key=SIGNING_KEY)
+    assert rows and all(set(r) == {"id", "occurred_at"} for r in rows) and len(rows) <= 2
+    plain = seeded.execute(stmt.where(Patient.region == "us-east").limit(2)).mappings().all()
+    assert [dict(r) for r in plain] == rows
+
+
+def test_allowed_fields_on_root_only_denies_joined_column(seeded: Session) -> None:
+    p = policy({"fieldRules": {"allowedFields": ["encounters.id", "encounters.status"]}})
+    with pytest.raises(TolapDenied):
+        enforce(
+            select(Encounter.id, Patient.region.label("r")).join(Patient),
+            signed(p),
+            seeded,
+            signing_key=SIGNING_KEY,
+        )

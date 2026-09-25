@@ -275,8 +275,13 @@ Same pre-checks, same pushdown rules (negations render `(col <> x OR col IS NULL
 explicitly, since SQLAlchemy does not add the null arm Django does), same mandatory post
 pass, same differential proof on SQLite and PostgreSQL against the same fixtures and
 property tests. Entity selects (`select(Patient)`) are the default projection; named columns
-and labels are explicit references. `text()`, `literal_column()`, derived tables in `FROM`
-and set operations are refused. Install with `pip install sqlalchemy-tolap`.
+and labels are explicit references. Columns of a joined table, bare or labelled, and
+labelled root columns are pre-checked and masked under their own table's rules and returned
+under the caller's key (`select(Patient.id, Encounter.occurred_at)`,
+`Encounter.region.label("encounter_region")`); a projection key that repeats or that is
+named like a root column other than itself is refused, so label it. `text()`,
+`literal_column()`, derived tables in `FROM` and set operations are refused. Install with
+`pip install sqlalchemy-tolap`.
 
 ## What upstream already does, and what this adds
 

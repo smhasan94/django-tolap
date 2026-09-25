@@ -100,6 +100,20 @@ SA_CORPUS: list[tuple[str, Factory, str]] = [
     ),
     ("aliased", lambda: select(aliased(Patient).id), "aliased entity"),
     (
+        "join_columns",
+        lambda: select(Patient.id, Encounter.occurred_at).join(Encounter).order_by(Patient.id),
+        "joined column",
+    ),
+    (
+        "join_label",
+        lambda: (
+            select(Patient.id, Encounter.region.label("encounter_region"))
+            .join(Encounter)
+            .order_by(Patient.id)
+        ),
+        "labelled joined column",
+    ),
+    (
         "between_dates",
         lambda: select(Patient).where(Patient.date_of_birth.between("1970-01-01", "1989-12-31")),
         "BETWEEN on dates",

@@ -105,6 +105,11 @@ STATEMENTS = [
     lambda: select(Patient).where(
         exists().where(Encounter.patient_id == Patient.id, Encounter.region == "us-east")
     ),
+    lambda: (
+        select(Patient.id, Patient.score, Encounter.occurred_at, Encounter.region.label("er"))
+        .join(Encounter)
+        .order_by(Patient.id, Encounter.id)
+    ),
 ]
 
 

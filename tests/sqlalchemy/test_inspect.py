@@ -86,7 +86,9 @@ def test_limit_offset() -> None:
         lambda: select(select(patients).cte().c.id),
         lambda: select(Patient, Encounter),
         lambda: select(Patient, Encounter.status),
-        lambda: select(Patient.id, Encounter.status).join(Encounter),
+        lambda: select(Patient.status, Encounter.status).join(Encounter),
+        lambda: select(Patient.id, Encounter.region).join(Encounter),
+        lambda: select(Patient.id, Encounter.status.label("region")).join(Encounter),
         lambda: select(func.count(Patient.id)),
     ],
     ids=[
@@ -98,7 +100,9 @@ def test_limit_offset() -> None:
         "cte",
         "two-entities",
         "mixed",
-        "joined-projection",
+        "duplicate-key",
+        "joined-shadows-root",
+        "label-shadows-root",
         "unlabelled",
     ],
 )
@@ -114,3 +118,19 @@ def test_aliased_table() -> None:
     ins = inspect(select(p.id, p.region).where(p.status == "a"))
     assert ins.root is patients and ColRef("patients", "status") in ins.referenced
     assert encounters is not None
+
+
+def test_joined_and_labelled_columns_are_keyed_to_their_object() -> None:
+    """A non-root column, bare or labelled, and a labelled root column are plain columns
+    under the caller's key; the post pass sees them as ``table.column``."""
+    stmt = select(Patient.id, Encounter.occurred_at, Patient.email.label("mail")).join(Encounter)
+    ins = inspect(stmt)
+    assert ins.projected == ("id", "occurred_at", "mail")
+    assert ins.renamed == {
+        "occurred_at": ColRef("encounters", "occurred_at"),
+        "mail": ColRef("patients", "email"),
+    }
+    assert {ColRef("encounters", "occurred_at"), ColRef("patients", "email")} <= ins.referenced
+    assert ins.annotations == {}
+    same = inspect(select(Patient.id, Patient.status.label("status")))
+    assert same.renamed == {"status": ColRef("patients", "status")}  # its own name: no shadow

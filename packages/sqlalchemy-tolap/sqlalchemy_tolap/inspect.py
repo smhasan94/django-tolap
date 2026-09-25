@@ -35,6 +35,8 @@ class Inspection:
     referenced: frozenset[ColRef]  # explicit references only; never a default projection
     projected: tuple[str, ...] | None  # names in the caller's explicit projection, else None
     selected: tuple[Any, ...]  # the selected column elements, in order
+    renamed: dict[str, ColRef]  # projected keys that are plain columns of another table, or
+    # labelled columns; the post pass sees them as ``table.column``
     annotations: dict[str, frozenset[ColRef]]
     limit: int | None
     offset: int | None
@@ -117,6 +119,17 @@ def _entity_tables(stmt: Select[Any]) -> tuple[list[Table], int]:
     return tables, len(raw)
 
 
+def _no_shadow(key: str, ref: ColRef | None, root: Table) -> None:
+    """Refuse a projection key named like a root column unless it is that very column.
+
+    A row filter on that column would otherwise be evaluated against the other value in
+    the post pass, and a filtered root column added to the projection would collide with
+    it. Django refuses the same shadowing.
+    """
+    if key in root.columns and ref != ColRef(root.name, key):
+        raise Uninspectable(f"projection key {key!r} shadows a column of {root.name}; label it")
+
+
 def inspect(stmt: Any) -> Inspection:
     if not isinstance(stmt, Select):
         raise Uninspectable(f"{type(stmt).__name__} is not a Select")
@@ -151,22 +164,29 @@ def inspect(stmt: Any) -> Inspection:
 
     selected = tuple(stmt.selected_columns)
     projected: list[str] = []
+    renamed: dict[str, ColRef] = {}
     annotations: dict[str, frozenset[ColRef]] = {}
     if explicit:
         for col in selected:
             if isinstance(col, Column):
-                table = base_table(col)
-                if table is not root:
-                    raise Uninspectable(
-                        f"projection of {table.name}.{col.name} is not a root-table column"
-                    )
-                walker.refs.add(ColRef(table.name, col.name))
+                ref = ColRef(base_table(col).name, col.name)
+                if ref.table != root.name:
+                    # The row's key is the column name; it must not collide with a root
+                    # column the post pass may need (a filtered field is projected too).
+                    _no_shadow(col.name, ref, root)
+                    renamed[col.name] = ref
+                walker.refs.add(ref)
+                projected.append(col.name)
+            elif isinstance(col, Label) and isinstance(col.element, Column):
+                # A plain column under another key is still that column: pre-checked and
+                # masked as such, never treated as a derived value.
+                ref = ColRef(base_table(col.element).name, col.element.name)
+                _no_shadow(col.name, ref, root)
+                walker.refs.add(ref)
+                renamed[col.name] = ref
                 projected.append(col.name)
             elif isinstance(col, Label):
-                if col.name in root.columns:
-                    # A row filter on that column would otherwise be evaluated against the
-                    # label's value in the post pass. Django refuses the same shadowing.
-                    raise Uninspectable(f"label {col.name!r} shadows a column of {root.name}")
+                _no_shadow(col.name, None, root)
                 sub = _Walker()
                 sub.tables = walker.tables
                 sub.nodes(col.element)
@@ -175,6 +195,9 @@ def inspect(stmt: Any) -> Inspection:
                 projected.append(col.name)
             else:
                 raise Uninspectable("an unlabelled expression in the projection is not supported")
+        duplicates = sorted({n for n in projected if projected.count(n) > 1})
+        if duplicates:
+            raise Uninspectable(f"projection key {duplicates[0]!r} is used twice; label it")
 
     return Inspection(
         root=root,
@@ -183,6 +206,7 @@ def inspect(stmt: Any) -> Inspection:
         referenced=frozenset(walker.refs),
         projected=tuple(projected) if explicit else None,
         selected=selected,
+        renamed=renamed,
         annotations=annotations,
         limit=stmt._limit,
         offset=stmt._offset,

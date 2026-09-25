@@ -244,6 +244,7 @@ upstream would link or host; halt for the owner to post.
 | E6-S3 | Filter compiler and projection for `Select` | FR-19 | E6-S2 | done |
 | E6-S4 | `enforce()` + differential suite on SQLite/PostgreSQL | FR-19 | E6-S3 | done |
 | E6-S5 | README and gap corpus for SQLAlchemy | FR-19, FR-14 | E6-S4 | done |
+| E6-S6 | Joined and labelled column projection | FR-19 | E6-S5 | done |
 
 **E6-S1.** AC: `packages/sqlalchemy-tolap`; shared `tests/harness` (fixture loader,
 Hypothesis strategies, differential assertion) importable by both packages.
@@ -253,3 +254,5 @@ columns, joins; refuse `text()` fragments and CTE/union.
 projection; `.limit()`.
 **E6-S4.** AC: FR-13 equivalents pass on both vendors.
 **E6-S5.** AC: quickstart for FastAPI-style usage; gap table for `str(select.compile())`.
+
+**E6-S6.** AC: non-root columns (bare or labelled) and labelled root columns accepted; pre-checked against their own table's field rules; post pass sees `table.column`, caller key restored; duplicate or root-shadowing keys refused (`label it`); differential corpus and property statement added. Post-v0.1 backlog item, 2026-09-25.

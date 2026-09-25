@@ -206,6 +206,10 @@ class Preparation:
     visible_fields: tuple[str, ...] = ()
     projection: tuple[str, ...] = ()
     extra_fields: tuple[str, ...] = ()
+    """Fields projected only so the post pass can evaluate a row filter; stripped after."""
+    key_map: dict[str, str] = dataclass_field(default_factory=dict)
+    """Caller keys of joined or labelled columns and the ``table.column`` name the post pass
+    sees them under, so that table's rules match them."""
     max_results: int | None = None
     mode: EnforcementMode = EnforcementMode.rewrite_and_post
 
@@ -247,13 +251,13 @@ def prepare_select(
         base = []
         names = []
         for col in ins.selected:
-            if isinstance(col, Column):
-                if col.name in visible:
-                    base.append(col)
-                    names.append(col.name)
-            else:  # a Label already checked by the pre-check
-                base.append(col)
-                names.append(col.name)
+            # Joined and labelled columns (ins.renamed) and Labels reached here only if the
+            # pre-check found every column they read visible.
+            if isinstance(col, Column) and col.name not in ins.renamed and col.name not in visible:
+                continue
+            base.append(col)
+            names.append(col.name)
+    key_map = {key: f"{ref.table}.{ref.name}" for key, ref in ins.renamed.items()}
     if not base:
         return Preparation.denied(NO_FIELDS_VISIBLE)
 
@@ -299,6 +303,7 @@ def prepare_select(
         visible_fields=visible,
         projection=(*names, *extra),
         extra_fields=tuple(extra),
+        key_map=key_map,
         max_results=max_results,
         mode=resolved_mode,
     )
@@ -310,7 +315,17 @@ def finalize(
     policy: EffectivePolicy,
     hash_salt: str | bytes | None,
 ) -> list[dict[str, Any]]:
+    """The post-execution pipeline (mandatory), then drop fields projected only for filters.
+
+    Joined and labelled columns are presented to the pipeline as ``table.column`` so that
+    table's rules match them, and handed back under the caller's key.
+    """
+    if prep.key_map:
+        rows = [{prep.key_map.get(k, k): v for k, v in row.items()} for row in rows]
     result: list[dict[str, Any]] = apply_result_pipeline(rows, policy, hash_salt)
+    if prep.key_map:
+        back = {v: k for k, v in prep.key_map.items()}
+        result = [{back.get(k, k): v for k, v in row.items()} for row in result]
     if not prep.extra_fields:
         return result
     extra = set(prep.extra_fields)

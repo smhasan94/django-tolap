@@ -168,7 +168,7 @@ updated; time-to-first-value walkthrough measured under five minutes by the scri
 | Story | Title | FRs | Depends on | Status |
 | --- | --- | --- | --- | --- |
 | E3-S1 | `tolap_tool` decorator and `tolap_context` | FR-15 | E2-S6 | done |
-| E3-S2 | Interop test with upstream `tolap-mcp` wrapper | FR-15 | E3-S1 | todo |
+| E3-S2 | Interop test with upstream `tolap-mcp` wrapper | FR-15 | E3-S1 | done |
 | E3-S3 | DRF viewset and serializer mixins | FR-16 | E3-S1 | todo |
 | E3-S4 | DRF write-method refusal and schema hiding | FR-16 | E3-S3 | todo |
 

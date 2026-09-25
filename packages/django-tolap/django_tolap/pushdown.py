@@ -28,13 +28,17 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import Any, Literal
 
-from django.db import models
-from django.db.models import Model, Q
-from tolap_core import FilterOperator, RowFilter
+from django.db import connections, models
+from django.db.models import Manager, Model, Q
+from tolap_core import EffectivePolicy, FilterOperator, RowFilter
 
+from django_tolap.exceptions import Uninspectable
+from django_tolap.inspect import inspect
 from django_tolap.objects import object_name
+from django_tolap.precheck import CANNOT_INSPECT, FieldRules, field_visible, precheck_inspection
 
 _LOG = logging.getLogger(__name__)
 
@@ -200,3 +204,130 @@ _ORDERING = {
     FilterOperator.less_than: "lt",
     FilterOperator.less_than_or_equal: "lte",
 }
+
+
+# -- Preparing a whole QuerySet --
+
+NO_FIELDS_VISIBLE = "no fields visible"
+
+
+@dataclass
+class Preparation:
+    """The outcome of :func:`prepare_queryset`.
+
+    Mirrors upstream ``SqlQueryPreparation``. ``queryset`` is what to execute when ``allowed``;
+    it yields dicts (``.values()``) restricted to ``visible_fields`` plus the annotations the
+    caller selected. **The post-execution pipeline still MUST run on the rows it returns.**
+    """
+
+    allowed: bool
+    queryset: Any | None
+    denial_reason: str | None = None
+    unpushable_filters: list[RowFilter] = dataclass_field(default_factory=list)
+    pushed_filters: list[RowFilter] = dataclass_field(default_factory=list)
+    visible_fields: tuple[str, ...] = ()
+    projection: tuple[str, ...] = ()
+    max_results: int | None = None
+
+    @property
+    def fully_pushed_down(self) -> bool:
+        return self.allowed and not self.unpushable_filters
+
+    @classmethod
+    def denied(cls, reason: str) -> Preparation:
+        return cls(allowed=False, queryset=None, denial_reason=reason)
+
+
+def _root_filter_field(rf: RowFilter, model: type[Model]) -> str | None:
+    """Name of the root-model concrete field a row filter reads, for the projection."""
+    qualifier, _, leaf = rf.field.rpartition(".")
+    if qualifier and qualifier.lower() != object_name(model).lower():
+        return None
+    for field in model._meta.concrete_fields:
+        if field.name.lower() == leaf.lower():
+            return field.name
+    return None
+
+
+def prepare_queryset(queryset: Any, policy: EffectivePolicy) -> Preparation:
+    """Pre-check, then push row filters, projection and limit into a copy of ``queryset``.
+
+    Steps: :func:`precheck_inspection`; compute the visible projection (concrete fields minus
+    hidden, intersected with ``allowedFields`` and with the caller's own projection); keep
+    every field a row filter reads so the post pass can evaluate it (a hidden filtered field
+    is projected here and stripped by the post pass, per upstream section 4); compile each
+    row filter for the connection's vendor; ``.values(...)``; slice to ``maxResults``.
+
+    A QuerySet the caller already sliced cannot take further filters (Django refuses, and
+    filtering before the offset would change which rows the window covers), so its row
+    filters are all reported unpushable; only the projection and a narrower limit apply.
+    """
+    qs = queryset.all() if isinstance(queryset, Manager) else queryset
+    try:
+        ins = inspect(qs)
+    except Uninspectable as exc:
+        return Preparation.denied(CANNOT_INSPECT.format(why=exc.why))
+    access = precheck_inspection(ins, policy)
+    if not access.allowed:
+        return Preparation.denied(access.reason or "access denied")
+
+    root = ins.root
+    rules = FieldRules.of(policy)
+    obj = object_name(root)
+    concrete = [f.name for f in root._meta.concrete_fields]
+    visible = tuple(n for n in concrete if field_visible(rules, f"{obj}.{n}"))
+
+    annotation_names = tuple(qs.query.annotation_select)
+    if ins.projected is None:
+        base = list(visible)
+    else:
+        base = [n for n in ins.projected if n in visible]
+        annotation_names = tuple(n for n in ins.projected if n in annotation_names)
+    if not base:
+        return Preparation.denied(NO_FIELDS_VISIBLE)
+
+    row_filters = list(policy.object_rules.row_filters or ()) if policy.object_rules else []
+    for rf in row_filters:
+        name = _root_filter_field(rf, root)
+        if name is not None and name not in base:
+            base.append(name)
+    projection = tuple(base)
+
+    vendor = connections[qs.db].vendor
+    sliced = ins.low_mark != 0 or ins.high_mark is not None
+    pushed: list[RowFilter] = []
+    unpushable: list[RowFilter] = []
+    prepared = qs
+    for rf in row_filters:
+        q = None if sliced else compile_filter(rf, root, vendor)
+        if q is None:
+            unpushable.append(rf)
+        else:
+            pushed.append(rf)
+            prepared = prepared.filter(q)
+
+    prepared = prepared.values(*projection, *annotation_names)
+
+    max_results = policy.limits.max_results if policy.limits else None
+    if max_results is not None:
+        low, high = ins.low_mark, ins.high_mark
+        cap = low + max_results
+        if high is None or cap < high:
+            prepared = _reslice(prepared, low, cap)
+
+    return Preparation(
+        allowed=True,
+        queryset=prepared,
+        unpushable_filters=unpushable,
+        pushed_filters=pushed,
+        visible_fields=visible,
+        projection=(*projection, *annotation_names),
+        max_results=max_results,
+    )
+
+
+def _reslice(qs: Any, low: int, high: int) -> Any:
+    clone = qs._chain()
+    clone.query.clear_limits()
+    clone.query.set_limits(low, high)
+    return clone

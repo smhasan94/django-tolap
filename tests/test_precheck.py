@@ -67,8 +67,9 @@ def test_pattern_fields_are_exempt_from_unknown_check() -> None:
 
 def test_hidden_field_referenced_anywhere_denies() -> None:
     p = policy(fieldRules={"hiddenFields": ["ssn"]})
+    assert precheck(Patient.objects.all(), p).allowed  # SELECT *: hidden column projected out
     for qs in (
-        Patient.objects.all(),
+        Patient.objects.only("ssn"),
         Patient.objects.filter(ssn="1"),
         Patient.objects.order_by("ssn"),
         Patient.objects.values("id", "ssn"),
@@ -99,7 +100,7 @@ def test_allowed_fields_restricts_references() -> None:
     assert precheck(Patient.objects.values("id", "region").order_by("email"), p).reason == (
         FIELD_DENIED
     )
-    assert precheck(Patient.objects.all(), p).reason == FIELD_DENIED
+    assert precheck(Patient.objects.all(), p).allowed
 
 
 def test_empty_allowed_fields_denies_every_reference() -> None:

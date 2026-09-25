@@ -46,7 +46,7 @@ class FieldRef:
 class Inspection:
     root: type[Model]
     models: frozenset[type[Model]]
-    referenced: frozenset[FieldRef]
+    referenced: frozenset[FieldRef]  # explicit references only; never the default projection
     projected: tuple[str, ...] | None
     annotations: dict[str, frozenset[FieldRef]]
     low_mark: int
@@ -54,8 +54,9 @@ class Inspection:
 
 
 class _Walker:
-    def __init__(self, using: str) -> None:
+    def __init__(self, using: str, *, explicit_select: bool = True) -> None:
         self.using = using
+        self.explicit_select = explicit_select
         self.refs: set[FieldRef] = set()
         self.models: set[type[Model]] = set()
         self._tables = {m._meta.db_table: m for m in apps.get_models(include_auto_created=True)}
@@ -92,8 +93,13 @@ class _Walker:
         self._node(clone.where)
         for expr, _ in order_by:
             self._node(expr)
-        for expr, _, _ in compiler.select:
-            self._node(expr)
+        # A default projection (``SELECT *``) is not a reference the caller made: hidden
+        # columns are projected out later, as upstream does for ``SELECT *``. An explicit
+        # ``values()``/``only()`` names columns and is checked. Subquery selects are always
+        # explicit.
+        if not root or self.explicit_select:
+            for expr, _, _ in compiler.select:
+                self._node(expr)
         if isinstance(clone.group_by, tuple):
             for expr in clone.group_by:
                 self._node(expr)
@@ -177,7 +183,9 @@ def inspect(queryset: QuerySet[Any] | Manager[Any]) -> Inspection:
         raise Uninspectable("raw() querysets are not supported")
     qs: QuerySet[Any] = queryset.all() if isinstance(queryset, Manager) else queryset
     query = qs.query
-    walker = _Walker(qs.db)
+    deferred, is_defer = query.deferred_loading
+    explicit = getattr(qs, "_fields", None) is not None or (bool(deferred) and not is_defer)
+    walker = _Walker(qs.db, explicit_select=explicit)
     walker.query(query, root=True)
     return Inspection(
         root=_root_model(query),

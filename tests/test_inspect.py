@@ -16,12 +16,18 @@ def refs(qs) -> set[tuple[str, str]]:  # type: ignore[no-untyped-def]
     return {r.key for r in inspect(qs).referenced}
 
 
-def test_plain_all_references_default_columns() -> None:
+def test_plain_all_does_not_reference_default_columns() -> None:
     ins = inspect(Patient.objects.all())
     assert ins.root is Patient
     assert ins.models == frozenset({Patient})
-    assert ("testapp.patient", "ssn") in {r.key for r in ins.referenced}
+    assert ins.referenced == frozenset()  # SELECT * is not an explicit reference
     assert ins.projected is None
+
+
+def test_values_and_only_are_explicit_references_but_defer_is_not() -> None:
+    assert FieldRef(Patient, "ssn") in inspect(Patient.objects.values("ssn")).referenced
+    assert FieldRef(Patient, "ssn") in inspect(Patient.objects.only("ssn")).referenced
+    assert FieldRef(Patient, "ssn") not in inspect(Patient.objects.defer("email")).referenced
 
 
 def test_manager_accepted() -> None:

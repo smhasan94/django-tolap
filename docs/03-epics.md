@@ -13,7 +13,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 | E3 | Tool helper and DRF integration | reviewed |
 | E4 | Differential hardening and gap measurement | reviewed |
 | E5 | Example app, benchmark, README, upstream issue | reviewed |
-| E6 | SQLAlchemy adapter | todo |
+| E6 | SQLAlchemy adapter | in progress |
 
 ---
 
@@ -229,12 +229,12 @@ upstream would link or host; halt for the owner to post.
 
 ---
 
-## E6. SQLAlchemy adapter — status: todo
+## E6. SQLAlchemy adapter — status: in progress
 
 | Story | Title | FRs | Depends on | Status |
 | --- | --- | --- | --- | --- |
-| E6-S1 | Package scaffold, shared harness extraction | FR-19 | E4-S3 | todo |
-| E6-S2 | `Select` inspection and pre-checks | FR-19 | E6-S1 | todo |
+| E6-S1 | Package scaffold, shared harness extraction | FR-19 | E4-S3 | done |
+| E6-S2 | `Select` inspection and pre-checks | FR-19 | E6-S1 | done |
 | E6-S3 | Filter compiler and projection for `Select` | FR-19 | E6-S2 | todo |
 | E6-S4 | `enforce()` + differential suite on SQLite/PostgreSQL | FR-19 | E6-S3 | todo |
 | E6-S5 | README and gap corpus for SQLAlchemy | FR-19, FR-14 | E6-S4 | todo |

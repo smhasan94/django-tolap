@@ -1,0 +1,116 @@
+from __future__ import annotations
+
+import pytest
+from sqlalchemy import column, exists, func, literal_column, select, text
+
+from sqlalchemy_tolap.exceptions import Uninspectable
+from sqlalchemy_tolap.inspect import ColRef, inspect
+from tests.sqlalchemy.models import Encounter, Patient, encounters, patients
+
+
+def test_entity_select_is_default_projection() -> None:
+    ins = inspect(select(Patient))
+    assert ins.root is patients and ins.projected is None and ins.referenced == frozenset()
+    assert set(ins.tables) == {"patients"}
+
+
+def test_core_table_select_same() -> None:
+    ins = inspect(select(patients).where(patients.c.region == "x"))
+    assert ins.projected is None and ins.referenced == {ColRef("patients", "region")}
+
+
+def test_explicit_columns_are_referenced() -> None:
+    ins = inspect(select(Patient.id, Patient.ssn).order_by(Patient.email))
+    assert ins.projected == ("id", "ssn")
+    assert {
+        ColRef("patients", "ssn"),
+        ColRef("patients", "email"),
+        ColRef("patients", "id"),
+    } <= ins.referenced
+
+
+def test_join_adds_table_onclause_and_where_columns() -> None:
+    ins = inspect(select(Patient).join(Encounter).where(Encounter.status == "active"))
+    assert set(ins.tables) == {"patients", "encounters"}
+    assert ColRef("encounters", "status") in ins.referenced
+    assert ColRef("encounters", "patient_id") in ins.referenced  # ON clause
+
+
+def test_label_annotation_sources() -> None:
+    ins = inspect(select(Patient.id, func.upper(Patient.email).label("e")))
+    assert ins.annotations["e"] == frozenset({ColRef("patients", "email")})
+    assert ins.projected == ("id", "e")
+
+
+def test_group_by_having_and_subqueries() -> None:
+    stmt = (
+        select(Patient.id, func.count(Encounter.id).label("n"))
+        .join(Encounter)
+        .group_by(Patient.id)
+        .having(func.count(Encounter.id) > 0)
+    )
+    ins = inspect(stmt)
+    assert ColRef("encounters", "id") in ins.referenced
+    sub = (
+        select(Encounter.status)
+        .where(Encounter.patient_id == Patient.id)
+        .order_by(Encounter.id.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    ins = inspect(
+        select(Patient.id, sub.label("last")).where(
+            exists().where(Encounter.patient_id == Patient.id, Encounter.region == "eu-west")
+        )
+    )
+    assert (
+        ColRef("encounters", "region") in ins.referenced
+        and ColRef("encounters", "status") in ins.referenced
+    )
+    assert "encounters" in ins.tables
+
+
+def test_limit_offset() -> None:
+    ins = inspect(select(Patient).limit(5).offset(2))
+    assert (ins.limit, ins.offset) == (5, 2)
+
+
+@pytest.mark.parametrize(
+    "stmt_factory",
+    [
+        lambda: select(Patient.id).where(text("1=1")),
+        lambda: select(literal_column("42").label("x"), Patient.id),
+        lambda: select(Patient.id).where(column("region") == "x"),
+        lambda: select(Patient.id).union(select(Patient.id)),
+        lambda: select(patients.c.id).select_from(select(patients).subquery()),
+        lambda: select(select(patients).cte().c.id),
+        lambda: select(Patient, Encounter),
+        lambda: select(Patient, Encounter.status),
+        lambda: select(Patient.id, Encounter.status).join(Encounter),
+        lambda: select(func.count(Patient.id)),
+    ],
+    ids=[
+        "text",
+        "literal_column",
+        "unattached",
+        "union",
+        "subquery-from",
+        "cte",
+        "two-entities",
+        "mixed",
+        "joined-projection",
+        "unlabelled",
+    ],
+)
+def test_refused(stmt_factory) -> None:  # type: ignore[no-untyped-def]
+    with pytest.raises(Uninspectable):
+        inspect(stmt_factory())
+
+
+def test_aliased_table() -> None:
+    from sqlalchemy.orm import aliased
+
+    p = aliased(Patient)
+    ins = inspect(select(p.id, p.region).where(p.status == "a"))
+    assert ins.root is patients and ColRef("patients", "status") in ins.referenced
+    assert encounters is not None

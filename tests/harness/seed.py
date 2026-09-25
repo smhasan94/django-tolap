@@ -5,6 +5,9 @@ from __future__ import annotations
 import datetime as dt
 import re
 
+from django.core.management.color import no_style
+from django.db import connection
+
 from tests.harness.fixtures import UPSTREAM
 from tests.testapp.models import AuditLog, BillingInternal, Diagnosis, Encounter, Patient
 
@@ -80,6 +83,14 @@ def seed() -> None:
             for i, (a, ac, o) in enumerate(AUDIT, start=1)
         ]
     )
+    # Explicit ids leave PostgreSQL sequences behind; realign them so later inserts work.
+    statements = connection.ops.sequence_reset_sql(
+        no_style(), [Patient, Encounter, Diagnosis, BillingInternal, AuditLog]
+    )
+    if statements:
+        with connection.cursor() as cursor:
+            for statement in statements:
+                cursor.execute(statement)
 
 
 def upstream_row_counts() -> dict[str, int]:

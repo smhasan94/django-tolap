@@ -140,6 +140,17 @@ def test_sliced_queryset_pushes_no_row_filters(seeded: None) -> None:
     assert "WHERE" not in sql(prep)
 
 
+def test_limit_not_pushed_when_a_filter_is_unpushable(seeded: None) -> None:
+    p = policy(
+        {"rowFilters": [{"field": "full_name", "operator": "startsWith", "value": "J"}]},
+        limits={"maxResults": 1},
+    )
+    prep = prepare_queryset(Patient.objects.order_by("id"), p)
+    assert prep.allowed and prep.unpushable_filters and "LIMIT" not in sql(prep)
+    prep = prepare_queryset(Patient.objects.order_by("id")[:5], p)
+    assert "LIMIT 5" in sql(prep)  # the caller's own slice is kept as written
+
+
 def test_no_limit_means_no_slice(seeded: None) -> None:
     prep = prepare_queryset(Patient.objects.all(), policy())
     assert "LIMIT" not in sql(prep) and prep.max_results is None

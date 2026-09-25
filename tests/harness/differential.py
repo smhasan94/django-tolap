@@ -52,6 +52,12 @@ def assert_differential(
     """Assert both modes agree; return the pushed-path rows for further assertions."""
     prep, left = pushed(queryset, policy)
     right = post_only(queryset, policy)
+    qs = queryset.all() if isinstance(queryset, Manager) else queryset
+    if prep.max_results is not None and not qs.query.order_by and not qs.ordered:
+        # A limit without ORDER BY picks database-chosen rows on either path; only the
+        # count is comparable.
+        assert len(left) == len(right), "limit without ordering changed the row count"
+        return left
     assert canonical(left) == canonical(right), (
         f"pushdown changed the result\n  sql: {prep.queryset.query}\n"
         f"  pushed={[(f.field, f.operator.value) for f in prep.pushed_filters]}\n"

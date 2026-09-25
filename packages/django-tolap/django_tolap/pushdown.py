@@ -337,8 +337,14 @@ def prepare_queryset(
 
     prepared = prepared.values(*projection, *annotation_names)
 
+    # The limit is pushed only when every row filter was pushed: a database LIMIT applied
+    # before a post-pass filter would truncate to fewer than maxResults qualifying rows.
     max_results = policy.limits.max_results if policy.limits else None
-    if max_results is not None and resolved_mode is EnforcementMode.rewrite_and_post:
+    if (
+        max_results is not None
+        and resolved_mode is EnforcementMode.rewrite_and_post
+        and not unpushable
+    ):
         low, high = ins.low_mark, ins.high_mark
         cap = low + max_results
         if high is None or cap < high:

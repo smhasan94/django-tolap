@@ -19,7 +19,7 @@ import django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tests.settings")
 django.setup()
 
-from django.db import connection  # noqa: E402
+from django.db import connection, transaction  # noqa: E402
 from django.test.utils import setup_databases, teardown_databases  # noqa: E402
 from tolap_core import SqlDialect, prepare_sql_query  # noqa: E402
 
@@ -33,7 +33,9 @@ DIALECTS = {"postgresql": SqlDialect.postgres, "sqlite": SqlDialect.ansi}
 def _executes(sql: str) -> str:
     """Whether the rewriter's output runs on this database as rendered by ``str(query)``."""
     try:
-        with connection.cursor() as cur:
+        # A savepoint: on PostgreSQL a failed statement would otherwise abort the
+        # surrounding transaction (the test suite runs this inside one).
+        with transaction.atomic(), connection.cursor() as cur:
             cur.execute(sql)
             cur.fetchall()
     except Exception as exc:  # noqa: BLE001 - the error class is the finding

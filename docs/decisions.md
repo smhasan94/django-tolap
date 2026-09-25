@@ -158,3 +158,23 @@ every vendor in CI.
   value whose Python type the driver would not return for that field (e.g. `"10"` on an
   integer column, a string on a date column) is declined, because the post pass drops such
   rows as non-comparable and SQL might not.
+
+## 2026-09-25 — The result limit is pushed only when every row filter was pushed
+
+**Question.** Hypothesis (SQLAlchemy adapter, PostgreSQL) found a policy with an unpushable
+filter (`startsWith`) and `maxResults` where pushdown returned fewer rows than post-pass
+only: `LIMIT n` truncated the database result before the post pass removed non-matching
+rows, so fewer than `n` qualifying rows came back.
+
+**Options.**
+1. Push the limit only when `unpushable_filters` is empty (both adapters).
+2. Push the limit always, as upstream's string rewriter does.
+3. Push an inflated limit.
+
+**Decision.** Option 1. The caller's own slice is still honoured as written (it is their
+semantics), and it is narrowed to `maxResults` only when all filters were pushed.
+
+**Rationale.** Upstream's spec says the limit runs last "so filtering never yields fewer rows
+than maxResults when more qualifying rows exist"; pushing it ahead of an unpushed filter
+breaks exactly that. Option 3 changes which rows are returned. The differential property is
+the arbiter and it now holds on both adapters and both databases.

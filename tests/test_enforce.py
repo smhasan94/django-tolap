@@ -11,7 +11,7 @@ from django_tolap import TolapDenied, enforce
 from django_tolap.enforce import validate
 from tests.harness.contexts import signed
 from tests.harness.fixtures import effective_policy
-from tests.testapp.models import Patient
+from tests.testapp.models import Encounter, Patient
 
 pytestmark = pytest.mark.django_db
 
@@ -195,3 +195,57 @@ def test_filter_field_added_for_post_pass_is_stripped_from_output(seeded: None) 
     rows = enforce(Patient.objects.values("id", "full_name").order_by("id"), signed(p))
     assert [r["id"] for r in rows] == [1, 3]
     assert all(set(r) == {"id", "full_name"} for r in rows)
+
+
+def test_joined_columns_masked_and_hidden_by_their_own_object(seeded: None) -> None:
+    """``values("patient__email")`` on an Encounter root: the ``patients.email`` mask rule
+    applies to the joined column, the caller's key shape is preserved, and a hidden joined
+    column is refused before execution."""
+    from django_tolap.pushdown import prepare_queryset
+
+    p = effective_policy(
+        {
+            "permissions": {"canQuery": True},
+            "objectRules": {
+                "fieldRules": {
+                    "hiddenFields": ["patients.ssn"],
+                    "maskedFields": [{"field": "patients.email", "maskType": "hash"}],
+                }
+            },
+        }
+    )
+    rows = enforce(
+        Encounter.objects.values("id", "status", "patient__email", "patient__region").order_by(
+            "id"
+        ),
+        signed(p),
+    )
+    assert set(rows[0]) == {"id", "status", "patient__email", "patient__region"}
+    assert rows[0]["patient__email"] == hashlib.sha256(b"john.smith@example.com").hexdigest()[:16]
+    assert rows[0]["patient__region"] == "us-east"
+    denied = prepare_queryset(Encounter.objects.values("id", "patient__ssn"), p)
+    assert not denied.allowed and "ssn" in (denied.denial_reason or "")
+
+
+def test_reverse_relation_projection_multiplies_rows(seeded: None) -> None:
+    rows = enforce(
+        Patient.objects.values("id", "encounters__status").order_by("id"),
+        signed(effective_policy({"permissions": {"canQuery": True}})),
+    )
+    assert len(rows) == Patient.objects.values("id", "encounters__status").count()
+    assert {"id", "encounters__status"} == set(rows[0])
+
+
+def test_allowed_fields_on_root_only_denies_joined_column(seeded: None) -> None:
+    p = effective_policy(
+        {
+            "permissions": {"canQuery": True},
+            # Explicit names: upstream's matcher lets a table-scoped wildcard such as
+            # "encounters.*" match any bare key, by design.
+            "objectRules": {
+                "fieldRules": {"allowedFields": ["encounters.id", "encounters.status"]}
+            },
+        }
+    )
+    with pytest.raises(TolapDenied):
+        enforce(Encounter.objects.values("id", "patient__region"), signed(p))

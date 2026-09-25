@@ -284,7 +284,7 @@ Measured on 48 (QuerySet, policy) pairs from a corpus of realistic QuerySets
 | Refused (Django names every column, so a hidden column anywhere on the model refuses the query) | 18 |
 | Rewritten | 30 |
 | Rewritten SQL executes as-is (`str(query)` interpolates parameters unquoted) | 16 |
-| django-tolap prepares the same QuerySet | 46 |
+| django-tolap prepares the same QuerySet | 0 |
 
 None of that is a defect in upstream, which was never built for ORM-rendered SQL. It is the
 gap. The report has a second table for SQLAlchemy statements compiled with literal binds
@@ -309,6 +309,11 @@ enforce(queryset, context)
 
 Modes mirror upstream's `SqlEnforcementMode`: `enforce(..., mode="postOnly")` skips the
 pushdown but not the checks or the post pass, and returns the same rows.
+
+`values("patient__email")` across a relation is fine: the joined column is checked against
+its own object's rules before execution and shown to the post pass as `patients.email`, so
+that object's masks apply, then handed back under the key you asked for. `only()` and
+`defer()` across relations are still refused.
 
 ## Compatibility
 

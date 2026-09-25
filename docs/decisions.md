@@ -284,3 +284,28 @@ rule is the ORM analogue of a serializer body that simply does not mention the f
 **Decision.** After five pull requests (#1 to #5) the owner chose to merge work straight into
 `main` again. Same commit discipline as before: small logical commits, suite green before
 each, no AI attribution. Branches and PRs return when the owner asks.
+
+## 2026-09-25 — Joined columns in values(): keyed as object.field for the post pass
+
+**Question.** Encounter.objects.values("id", "patient__email") was refused because the post
+pass could not tell which object patient__email belongs to: upstream matches a rule
+patients.email against a key by its forms patients.email and email, and
+patient__email is neither.
+
+**Options.**
+1. Present the row to the pipeline with the joined key renamed to patients.email (the
+   target model's TOLAP object name and field), rename back afterwards.
+2. Nest joined columns ({"patients": {"email": ...}}) and let upstream recurse.
+3. Keep refusing.
+
+**Decision.** Option 1, Django only for now. Inspection resolves each a__b path to its
+concrete field and records it in Inspection.joined; those fields join referenced so
+precheck_inspection refuses hidden or non-allowed joined columns before execution;
+Preparation.key_map carries the renaming and finalize applies it around
+apply_result_pipeline. only()/defer() across relations stay refused.
+
+**Rationale.** Option 1 keeps the caller's flat key shape and puts the qualifier where
+upstream's matcher looks for it. Option 2 changes the result shape and upstream's
+_row_field_value does not recurse, so joined row filters would drop every row. Upstream's
+matcher lets a bare or wildcard rule match any object's leaf; that over-masks, never
+under-masks, and is upstream's documented reading.

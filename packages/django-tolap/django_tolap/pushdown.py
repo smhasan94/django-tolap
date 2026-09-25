@@ -248,6 +248,9 @@ class Preparation:
     projection: tuple[str, ...] = ()
     extra_fields: tuple[str, ...] = ()
     """Fields projected only so the post pass can evaluate a row filter; stripped after."""
+    key_map: dict[str, str] = dataclass_field(default_factory=dict)
+    """Joined projection keys (``patient__email``) and the ``object.field`` name the post
+    pass sees them under (``patients.email``), so its rules match the right object."""
     max_results: int | None = None
     mode: EnforcementMode = EnforcementMode.rewrite_and_post
 
@@ -308,8 +311,10 @@ def prepare_queryset(
     if ins.projected is None:
         base = list(visible)
     else:
-        base = [n for n in ins.projected if n in visible]
+        # A joined column reached here only if precheck_inspection found it visible.
+        base = [n for n in ins.projected if n in visible or n in ins.joined]
         annotation_names = tuple(n for n in ins.projected if n in annotation_names)
+    key_map = {n: f"{object_name(ref.model)}.{ref.name}" for n, ref in ins.joined.items()}
     if not base:
         return Preparation.denied(NO_FIELDS_VISIBLE)
 
@@ -358,6 +363,7 @@ def prepare_queryset(
         visible_fields=visible,
         projection=(*projection, *annotation_names),
         extra_fields=tuple(extra),
+        key_map=key_map,
         max_results=max_results,
         mode=resolved_mode,
     )
@@ -369,8 +375,17 @@ def finalize(
     policy: EffectivePolicy,
     hash_salt: str | bytes | None,
 ) -> list[dict[str, Any]]:
-    """The post-execution pipeline (mandatory), then drop fields projected only for filters."""
+    """The post-execution pipeline (mandatory), then drop fields projected only for filters.
+
+    Joined columns are presented to the pipeline as ``object.field`` so a rule on that
+    object matches them, and handed back under the key the caller asked for.
+    """
+    if prep.key_map:
+        rows = [{prep.key_map.get(k, k): v for k, v in row.items()} for row in rows]
     result: list[dict[str, Any]] = apply_result_pipeline(rows, policy, hash_salt)
+    if prep.key_map:
+        back = {v: k for k, v in prep.key_map.items()}
+        result = [{back.get(k, k): v for k, v in row.items()} for row in result]
     if not prep.extra_fields:
         return result
     extra = set(prep.extra_fields)

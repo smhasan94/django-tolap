@@ -29,6 +29,10 @@ QUERYSETS = [
         Exists(Encounter.objects.filter(patient=OuterRef("pk"), region="us-east"))
     ),
     lambda: Patient.objects.values("id", "region").annotate(n=Count("encounters")),
+    lambda: Patient.objects.values("id", "region", "encounters__status").order_by("id"),
+    lambda: Encounter.objects.values("id", "status", "patient__region", "patient__email").order_by(
+        "id"
+    ),
 ]
 
 

@@ -38,8 +38,10 @@ Regenerate the gap report with `DATABASE_URL=... make gap-report`.
 **Backlog (post-v0.1, in rough priority order).**
 - Purpose binding, delegation chains, judge: when `tolap-core` 1.1 reaches PyPI. Four merge
   scenario fixtures are skipped until then; the upstream-`main` CI leg reports drift.
-- Projection of joined-table columns (`values("related__x")`, `select(Encounter.status)` next
-  to a Patient root) is refused today; would need per-table object naming in rows.
+- SQLAlchemy: projecting a non-root entity or column (`select(Patient.id, Encounter.status)`)
+  is still refused; Django's `values("related__x")` landed 2026-09-25 by presenting joined
+  keys as `object.field` to the post pass. The SQLAlchemy row keys collide (`status` twice)
+  without labels, so it needs a labelling rule first.
 - drf-spectacular schema integration beyond serializer-field hiding.
 
 **Things to remember.**

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from django.core.exceptions import FieldError
 from django.db.models import Count, Exists, F, OuterRef, Q, Subquery, Value
 from django.db.models.expressions import RawSQL
 from django.db.models.functions import Upper
@@ -120,11 +121,10 @@ def test_slice_marks() -> None:
         lambda: Patient.objects.annotate(x=RawSQL("1", ())),
         lambda: Patient.objects.filter(region="a").union(Patient.objects.filter(region="b")),
         lambda: Patient.objects.raw("SELECT * FROM patients"),
-        lambda: Patient.objects.values("encounters__status"),
         lambda: Patient.objects.only("encounters__status"),
         lambda: Patient.objects.select_for_update(),
     ],
-    ids=["extra", "rawsql", "union", "raw", "joined-values", "joined-only", "for-update"],
+    ids=["extra", "rawsql", "union", "raw", "joined-only", "for-update"],
 )
 def test_refused_constructs(qs_factory) -> None:  # type: ignore[no-untyped-def]
     with pytest.raises(Uninspectable):
@@ -135,3 +135,27 @@ def test_select_related_touches_model_but_projects_root_only() -> None:
     ins = inspect(Encounter.objects.select_related("patient"))
     assert Patient in ins.models
     assert ins.projected is None
+
+
+def test_joined_values_projection_is_recorded() -> None:
+    ins = inspect(Encounter.objects.values("id", "patient__region", "patient__pk"))
+    assert ins.projected == ("id", "patient__region", "patient__pk")
+    assert {k: (v.model, v.name) for k, v in ins.joined.items()} == {
+        "patient__region": (Patient, "region"),
+        "patient__pk": (Patient, "id"),
+    }
+    assert FieldRef(Patient, "region") in ins.referenced
+    reverse = inspect(Patient.objects.values("id", "encounters__status"))
+    assert reverse.joined["encounters__status"].model is Encounter
+
+
+@pytest.mark.parametrize("name", ["patient__nope", "nope__region"])
+def test_unknown_joined_paths_are_djangos_error(name: str) -> None:
+    """Django refuses an unknown path when ``values()`` is built, before inspection."""
+    with pytest.raises(FieldError):
+        Encounter.objects.values(name)
+
+
+def test_relation_object_as_leaf_refused() -> None:
+    with pytest.raises(Uninspectable):
+        inspect(Encounter.objects.values("patient__encounters"))

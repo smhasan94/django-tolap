@@ -4,8 +4,10 @@ The pre-execution checks (connector spec section 5) need every column the query 
 -- ``WHERE``, ``ORDER BY``, ``GROUP BY``, annotations, projection -- not only those it
 returns. Django resolves these to :class:`~django.db.models.expressions.Col` nodes on the
 query and its compiler; this module walks them. Anything it cannot see through (``extra()``,
-``RawSQL``, set operations, joined projections) is refused with :class:`Uninspectable`:
-fetching less is never a risk, returning more is, so unknown means refuse.
+``RawSQL``, set operations, ``only()``/``defer()`` across relations) is refused with
+:class:`Uninspectable`: fetching less is never a risk, returning more is, so unknown means
+refuse. A ``values("related__field")`` projection is accepted and recorded in
+:attr:`Inspection.joined` so the post pass can see which object each column belongs to.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from django.apps import apps
+from django.core.exceptions import FieldDoesNotExist
 from django.db.models import Manager, Model, QuerySet
 from django.db.models.expressions import Col, RawSQL, ResolvedOuterRef, Star, Subquery, Value
 from django.db.models.query import RawQuerySet
@@ -51,6 +54,8 @@ class Inspection:
     annotations: dict[str, frozenset[FieldRef]]
     low_mark: int
     high_mark: int | None
+    joined: dict[str, FieldRef] = field(default_factory=dict)
+    """Projected ``related__field`` paths and the concrete field each one lands on."""
 
 
 class _Walker:
@@ -148,13 +153,41 @@ def _root_model(query: Query) -> type[Model]:
     return query.model
 
 
-def _projection(qs: QuerySet[Any], query: Query) -> tuple[str, ...] | None:
+def _related_path(root: type[Model], path: str) -> FieldRef | None:
+    """The concrete field a ``values("a__b__c")`` path lands on, following relations."""
+    model = root
+    parts = path.split("__")
+    for part in parts[:-1]:
+        try:
+            rel = model._meta.get_field(part)
+        except FieldDoesNotExist:
+            return None
+        related = getattr(rel, "related_model", None)
+        if not rel.is_relation or related is None or related == "self":
+            return None
+        model = related
+    leaf = parts[-1]
+    if leaf == "pk":
+        leaf = model._meta.pk.name
+    try:
+        leaf_field = model._meta.get_field(leaf)
+    except FieldDoesNotExist:
+        return None
+    if not getattr(leaf_field, "concrete", False):
+        return None
+    return FieldRef(model=model, name=leaf_field.name)
+
+
+def _projection(
+    qs: QuerySet[Any], query: Query
+) -> tuple[tuple[str, ...] | None, dict[str, FieldRef]]:
     root = _root_model(query)
     concrete = {f.name for f in root._meta.concrete_fields}
     fields = getattr(qs, "_fields", None)
+    joined: dict[str, FieldRef] = {}
     if fields is not None:
         if not fields:
-            return None
+            return None, joined
         names: list[str] = []
         extra = [a for a in query.annotation_select if a not in fields]
         for name in (*fields, *extra):
@@ -164,17 +197,23 @@ def _projection(qs: QuerySet[Any], query: Query) -> tuple[str, ...] | None:
                 names.append(root._meta.pk.name)
             elif name in concrete:
                 names.append(name)
+            elif "__" in name and (ref := _related_path(root, name)) is not None:
+                names.append(name)
+                joined[name] = ref
             else:
-                raise Uninspectable(f"projection of {name!r} is not a root-model field")
-        return tuple(names)
+                raise Uninspectable(f"projection of {name!r} is not a model field")
+        return tuple(names), joined
     deferred, is_defer = query.deferred_loading
     if not deferred:
-        return None
+        return None, joined
     if any("__" in name for name in deferred):
         raise Uninspectable("only()/defer() across relations is not supported")
     if is_defer:
-        return tuple(f.name for f in root._meta.concrete_fields if f.name not in deferred)
-    return tuple(f.name for f in root._meta.concrete_fields if f.name in deferred or f.primary_key)
+        return tuple(f.name for f in root._meta.concrete_fields if f.name not in deferred), joined
+    return (
+        tuple(f.name for f in root._meta.concrete_fields if f.name in deferred or f.primary_key),
+        joined,
+    )
 
 
 def inspect(queryset: QuerySet[Any] | Manager[Any]) -> Inspection:
@@ -187,12 +226,14 @@ def inspect(queryset: QuerySet[Any] | Manager[Any]) -> Inspection:
     explicit = getattr(qs, "_fields", None) is not None or (bool(deferred) and not is_defer)
     walker = _Walker(qs.db, explicit_select=explicit)
     walker.query(query, root=True)
+    projected, joined = _projection(qs, query)
     return Inspection(
         root=_root_model(query),
         models=frozenset(walker.models),
-        referenced=frozenset(walker.refs),
-        projected=_projection(qs, query),
+        referenced=frozenset(walker.refs) | frozenset(joined.values()),
+        projected=projected,
         annotations=dict(walker.annotation_sources),
         low_mark=query.low_mark,
         high_mark=query.high_mark,
+        joined=joined,
     )

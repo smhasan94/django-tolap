@@ -31,9 +31,10 @@ class Command(BaseCommand):
         for start in range(0, total, BATCH):
             batch = []
             for i in range(start, min(start + BATCH, total)):
+                # No explicit ids: bulk_create with ids would leave the PostgreSQL sequence
+                # behind, and the next admin insert would collide on the primary key.
                 batch.append(
                     Patient(
-                        id=i + 1,
                         full_name=f"{rng.choice(FIRST)} {rng.choice(LAST)}",
                         email=f"patient{i + 1}@example.com",
                         ssn=f"{rng.randint(100, 999)}-{rng.randint(10, 99)}-{rng.randint(1000, 9999)}",

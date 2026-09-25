@@ -12,4 +12,9 @@ uv run python manage.py createsuperuser                   # then /admin/django_t
 uv run python manage.py runserver
 ```
 
-`DATABASE_URL=postgres://localhost/clinic` switches to PostgreSQL.
+`DATABASE_URL=postgres://localhost/clinic` switches to PostgreSQL. Running from this
+repository's `uv` environment provides `dj-database-url`; elsewhere `pip install django-tolap
+dj-database-url`.
+
+Memory in the benchmark is the process high-water mark, so the modes run from lightest to
+heaviest and each delta is what that mode added.

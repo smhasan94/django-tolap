@@ -1,7 +1,10 @@
 """Pushdown vs post-only on the same tool, same policy, same rows.
 
 Reports the SQL each mode sent, rows the database returned, peak resident memory delta,
-and median wall time. Both modes return identical rows (asserted).
+and median wall time. Both modes return identical rows (checked; a mismatch is an error).
+
+Memory is ``ru_maxrss``, a process-lifetime high-water mark. The modes therefore run from
+lightest to heaviest (pushdown first), so each delta is the growth that mode itself caused.
 """
 
 from __future__ import annotations
@@ -13,7 +16,7 @@ import sys
 import time
 from typing import Any
 
-from django.core.management.base import BaseCommand, CommandParser
+from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import connection, reset_queries
 from django.test.utils import CaptureQueriesContext
 
@@ -69,7 +72,10 @@ class Command(BaseCommand):
                 "median_s": statistics.median(timings),
                 "peak_rss_delta_mb": max(0.0, _peak_rss_mb() - rss_before),
             }
-        assert outputs[MODES[0].value] == outputs[MODES[1].value], "modes disagree"
+        if outputs[MODES[0].value] != outputs[MODES[1].value]:
+            raise CommandError(
+                "modes disagree: rewriteAndPost and postOnly returned different rows"
+            )
         self._report(total, results, options["markdown"])
 
     def _report(self, total: int, results: dict[str, dict[str, Any]], markdown: bool) -> None:

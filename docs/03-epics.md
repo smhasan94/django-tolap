@@ -12,7 +12,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 | E2 | Django-model policy store, admin, contexts | reviewed |
 | E3 | Tool helper and DRF integration | reviewed |
 | E4 | Differential hardening and gap measurement | reviewed |
-| E5 | Example app, benchmark, README, upstream issue | done |
+| E5 | Example app, benchmark, README, upstream issue | reviewed |
 | E6 | SQLAlchemy adapter | todo |
 
 ---
@@ -207,7 +207,7 @@ tests assert the `Q`/`None` without executing; README compatibility table says "
 
 ---
 
-## E5. Example app, benchmark, README, upstream issue — status: done
+## E5. Example app, benchmark, README, upstream issue — status: reviewed
 
 | Story | Title | FRs | Depends on | Status |
 | --- | --- | --- | --- | --- |

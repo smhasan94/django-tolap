@@ -6,7 +6,7 @@ from django_tolap.exceptions import TolapDenied, TolapSchemaMismatch, Uninspecta
 from django_tolap.pushdown import EnforcementMode
 from django_tolap.tool import ToolContext, tolap_context, tolap_tool
 
-__version__ = "0.1.0.dev0"
+__version__ = "0.1.0"
 
 __all__ = [
     "EnforcementMode",

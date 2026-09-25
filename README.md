@@ -15,10 +15,11 @@ masked, how many results. `django-tolap` brings that to Django:
   validates bodies with upstream's own deserializer, warns about fields your models lack,
   previews what a user resolves to, and keeps an audit log. Resolution and merging are
   upstream's `resolve()`, not a reimplementation.
-- A DRF mixin and a tool decorator (next epic).
+- **A tool decorator and DRF mixins** that resolve, sign, verify and enforce per call, and
+  compose with upstream's own `tolap-mcp` wrapper.
 
-Status: **v0.1 in progress.** Epics 1 (QuerySet enforcement) and 2 (store, admin, contexts)
-are done. See [`docs/03-epics.md`](docs/03-epics.md).
+Status: **v0.1 in progress.** Epics 1 (QuerySet enforcement), 2 (store, admin, contexts)
+and 3 (tool helper, DRF) are done. See [`docs/03-epics.md`](docs/03-epics.md).
 
 ## Install
 
@@ -110,6 +111,47 @@ produces.
 Every definition, assignment and resolution lands in the audit log (also in admin). The
 "Resolve preview" button on the definitions list shows what a user resolves to. Groups map
 to Django groups by default (`TOLAP["IDENTITY_RESOLVER"]` to change that).
+
+## In an agent tool
+
+```python
+from django_tolap import tolap_tool, ToolContext
+
+@tolap_tool(source="db:clinic:patients")
+def patients_search(q: str, *, tolap: ToolContext) -> list[dict]:
+    return tolap.enforce(Patient.objects.filter(full_name__icontains=q))
+
+patients_search("smith", user_id="alice", tenant_id="clinic")
+```
+
+Identity comes from the call's `user_id`/`tenant_id`, from an `identity=` callable that
+derives them from the tool's own arguments, or from `TOLAP["IDENTITY"]`. A signed
+`context=` issued elsewhere (for example by upstream's policy server) is verified and used
+as-is. This composes with upstream's `tolap-mcp` wrapper: let it run `pre_execute` for the
+tool call and `django-tolap` enforce the query; see `tests/test_tool_mcp_interop.py`.
+
+## In Django REST Framework
+
+```python
+from django_tolap.drf import TolapSerializerMixin, TolapViewSetMixin
+
+class PatientSerializer(TolapSerializerMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Patient
+        fields = "__all__"
+
+class PatientViewSet(TolapViewSetMixin, viewsets.ModelViewSet):
+    queryset = Patient.objects.all()
+    serializer_class = PatientSerializer
+    tolap_source = "db:clinic:patients"
+```
+
+`list` and `retrieve` return enforced rows (a filtered-out row is a 404). `POST`, `PUT`,
+`PATCH` and `DELETE` go through upstream `validate_write`: refused on a `readOnly` policy,
+when the policy lacks the write permission, when the payload names a hidden or read-only
+field, or when the target row is not visible under the row filters. The tenant is
+`"default"` unless `TOLAP["TENANT_RESOLVER"]` names a callable taking the request.
+Install with `pip install "django-tolap[drf]"`.
 
 ## What upstream already does, and what this adds
 

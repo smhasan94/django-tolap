@@ -271,8 +271,9 @@ Inherits upstream's STRIDE model. What this project adds or changes:
   boundary (e.g. issued by a central policy server, verified in the tool).
 - **TB5 (tool → data source) is the ORM.** Pushdown narrows what the database produces. It is
   not the boundary; the post pass is. An integrator who calls our pushdown and skips the post
-  pass is unprotected, so the public API does not expose pushdown without the post pass.
-  The only public entry points return post-passed records.
+  pass is unprotected. `enforce()` is the documented entry point and always runs the post
+  pass. The lower-level `prepare_queryset()` exists for inspection and benchmarks, carries the
+  same warning upstream puts on `prepare_sql_query`, and is not shown in the quickstart.
 - **New: schema drift.** A policy can reference a field or object the Django model does not
   have. Behavior is a halt decision (see §6); the default is fail closed.
 - **New: lookups that widen.** A caller's QuerySet can contain `.extra()`, raw SQL

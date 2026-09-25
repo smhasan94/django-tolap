@@ -86,3 +86,46 @@ the source-build CI leg keeps us from being surprised when 1.1 ships.
 **Decision.** Option 1.
 
 **Rationale.** Parity tests between the two adapters are easiest with a shared harness.
+
+## 2026-09-25 — Supported versions
+
+**Question.** Which Python, Django, and SQLAlchemy versions does v0.1 support?
+
+**Options.**
+1. Python 3.11–3.14, Django 5.2/6.0/6.1, SQLAlchemy 2.0/2.1.
+2. Python 3.12–3.14, Django 6.0/6.1, SQLAlchemy 2.1 only.
+3. Python 3.10–3.14, Django 4.2/5.2/6.x, SQLAlchemy 2.0/2.1.
+
+**Decision.** Option 1.
+
+**Rationale.** Python 3.10 reaches end-of-life 2026-10. Django 4.2 extended support ended
+2026-04. Option 1 covers the current LTS (5.2, supported to 2028-04) and both 6.x lines with
+a small CI matrix.
+
+## 2026-09-25 — Schema mismatch behavior
+
+**Question.** A policy references a field or object the Django model does not have. What
+does enforcement do?
+
+**Options.**
+1. Deny the query with a clear reason; admin shows a validation warning on save.
+2. Ignore unknown hidden/masked fields, deny only on unknown row-filter fields.
+3. Configurable, default deny.
+
+**Decision.** Option 1.
+
+**Rationale.** Fail closed, consistent with upstream's rule that a row filter on an absent
+field drops every row. A typo in a hidden-field name must be visible, not silently harmless.
+
+## 2026-09-25 — Store timing
+
+**Question.** Does the Django-model policy store (models, migrations, admin) ship in v0.1?
+
+**Options.**
+1. v0.1.
+2. v0.2, with v0.1 using upstream's `InMemoryPolicyStore` or a JSON file.
+
+**Decision.** Option 1.
+
+**Rationale.** The agreed headline is "policies managed in Django admin and enforced on your
+QuerySets"; without the store the quickstart has no admin.

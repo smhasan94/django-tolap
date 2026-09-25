@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from django.db.models import Model, QuerySet
-from tolap_core import AccessResult, EffectivePolicy, validate_access
+from tolap_core import AccessResult, EffectivePolicy, PolicyDefinition, validate_access
 
 from django_tolap.exceptions import Uninspectable
 from django_tolap.inspect import FieldRef, Inspection, inspect
@@ -42,7 +42,7 @@ class FieldRules:
     filtered: tuple[str, ...]
 
     @classmethod
-    def of(cls, policy: EffectivePolicy) -> FieldRules:
+    def of(cls, policy: EffectivePolicy | PolicyDefinition) -> FieldRules:
         rules = policy.object_rules
         fr = rules.field_rules if rules else None
         return cls(

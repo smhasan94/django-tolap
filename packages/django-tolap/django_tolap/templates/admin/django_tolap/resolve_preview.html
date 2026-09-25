@@ -1,0 +1,15 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Resolve preview | {{ site_title }}{% endblock %}
+{% block content %}
+<h1>Resolve preview</h1>
+<p>The effective policy upstream <code>resolve()</code> produces for a user, tenant and source,
+merged most-restrictive-wins from every applicable assignment.</p>
+<form method="post">{% csrf_token %}
+  <table>{{ form.as_table }}</table>
+  <input type="submit" value="Resolve" class="default">
+</form>
+{% if effective %}
+<h2>Effective policy</h2>
+<pre style="white-space: pre-wrap">{{ effective }}</pre>
+{% endif %}
+{% endblock %}

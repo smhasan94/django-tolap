@@ -13,7 +13,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 | E3 | Tool helper and DRF integration | reviewed |
 | E4 | Differential hardening and gap measurement | reviewed |
 | E5 | Example app, benchmark, README, upstream issue | reviewed |
-| E6 | SQLAlchemy adapter | done |
+| E6 | SQLAlchemy adapter | reviewed |
 
 ---
 
@@ -229,7 +229,7 @@ upstream would link or host; halt for the owner to post.
 
 ---
 
-## E6. SQLAlchemy adapter — status: done
+## E6. SQLAlchemy adapter — status: reviewed
 
 | Story | Title | FRs | Depends on | Status |
 | --- | --- | --- | --- | --- |

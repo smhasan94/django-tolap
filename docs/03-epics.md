@@ -11,7 +11,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 | E1 | QuerySet enforcement core (installable, demoable) | reviewed |
 | E2 | Django-model policy store, admin, contexts | reviewed |
 | E3 | Tool helper and DRF integration | reviewed |
-| E4 | Differential hardening and gap measurement | todo |
+| E4 | Differential hardening and gap measurement | done |
 | E5 | Example app, benchmark, README, upstream issue | todo |
 | E6 | SQLAlchemy adapter | todo |
 
@@ -184,15 +184,15 @@ reason; OpenAPI schema (drf-spectacular if installed, else DRF's) omits hidden f
 
 ---
 
-## E4. Differential hardening and gap measurement — status: todo
+## E4. Differential hardening and gap measurement — status: done
 
 | Story | Title | FRs | Depends on | Status |
 | --- | --- | --- | --- | --- |
-| E4-S1 | Hypothesis on PostgreSQL in CI, joined-field filters | FR-13 | E1-S10 | todo |
-| E4-S2 | Realistic QuerySet corpus vs upstream rewriter | FR-14 | E1-S8 | todo |
-| E4-S3 | `docs/gap-report.md` generator | FR-14 | E4-S2 | todo |
-| E4-S4 | Upstream-`main` CI leg | FR-20 | E1-S1 | todo |
-| E4-S5 | MySQL rules implemented, marked untested | FR-8 | E1-S6 | todo |
+| E4-S1 | Hypothesis on PostgreSQL in CI, joined-field filters | FR-13 | E1-S10 | done |
+| E4-S2 | Realistic QuerySet corpus vs upstream rewriter | FR-14 | E1-S8 | done |
+| E4-S3 | `docs/gap-report.md` generator | FR-14 | E4-S2 | done |
+| E4-S4 | Upstream-`main` CI leg | FR-20 | E1-S1 | done |
+| E4-S5 | MySQL rules implemented, marked untested | FR-8 | E1-S6 | done (landed in E1-S6: `VENDORS["mysql"]`, per-vendor tests, README says untested) |
 
 **E4-S1.** AC: Hypothesis `ci` profile on the PostgreSQL job; strategies extended with
 policies filtering on `related.field` through a FK; differential holds.

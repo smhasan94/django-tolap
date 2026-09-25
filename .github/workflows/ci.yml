@@ -49,6 +49,10 @@ jobs:
           python-version: "3.13"
       - run: uv sync --frozen
       - run: make test
+      - name: Gap report is current
+        run: |
+          PYTHONPATH=. uv run python -m tests.gap.report > /tmp/gap-report.md
+          diff -u docs/gap-report.md /tmp/gap-report.md
 
   quickstart:
     runs-on: ubuntu-latest
@@ -58,3 +62,22 @@ jobs:
         with:
           python-version: "3.13"
       - run: scripts/quickstart_check.sh
+
+  upstream-main:
+    # Installs tolap-core/tolap-store/tolap-mcp from upstream main instead of PyPI 1.0.0
+    # to catch API drift before a release does. Allowed to fail; the summary names it.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --frozen
+      - run: |
+          uv pip install --reinstall \
+            "tolap-core @ git+https://github.com/awslabs/tolap#subdirectory=sdk/python/tolap-core" \
+            "tolap-store @ git+https://github.com/awslabs/tolap#subdirectory=sdk/python/tolap-store" \
+            "tolap-mcp @ git+https://github.com/awslabs/tolap#subdirectory=sdk/python/tolap-mcp"
+      - run: uv run python -c "import tolap_core, importlib.metadata as m; print('tolap-core', m.version('tolap-core'))"
+      - run: make test

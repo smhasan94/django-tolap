@@ -67,16 +67,14 @@ ORDER BY 1 ASC LIMIT 500
 Without it: `SELECT ... FROM "patients" ORDER BY 1 ASC`, a million rows into Python, then
 TOLAP keeps 500. `ssn` is not in either statement.
 
-Status: **v0.1 feature-complete, unreleased.** All six epics done (enforcement, store and
-admin, tool and DRF, differential hardening, example and benchmark, SQLAlchemy adapter). See
-[`docs/03-epics.md`](docs/03-epics.md).
+Status: **v0.1.0 on PyPI.** All six epics done (enforcement, store and admin, tool and DRF,
+differential hardening, example and benchmark, SQLAlchemy adapter). See
+[`docs/03-epics.md`](docs/03-epics.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Install
 
-Not on PyPI yet. From this repository:
-
 ```bash
-pip install "django-tolap @ git+https://github.com/smhasan94/django-tolap#subdirectory=packages/django-tolap"
+pip install django-tolap            # add [drf] for the REST Framework mixins
 ```
 
 This pulls `tolap-core` and `tolap-store` from PyPI. Python 3.11+, Django 5.2/6.0/6.1.
@@ -224,12 +222,7 @@ explicitly, since SQLAlchemy does not add the null arm Django does), same mandat
 pass, same differential proof on SQLite and PostgreSQL against the same fixtures and
 property tests. Entity selects (`select(Patient)`) are the default projection; named columns
 and labels are explicit references. `text()`, `literal_column()`, derived tables in `FROM`
-and set operations are refused. Install with `pip install sqlalchemy-tolap` once released;
-from this repository:
-
-```bash
-pip install "sqlalchemy-tolap @ git+https://github.com/smhasan94/django-tolap#subdirectory=packages/sqlalchemy-tolap"
-```
+and set operations are refused. Install with `pip install sqlalchemy-tolap`.
 
 ## What upstream already does, and what this adds
 

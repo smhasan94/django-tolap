@@ -5,15 +5,16 @@ prepared, not published: versions bumped, `CHANGELOG.md` written, wheels build w
 `uv build --all-packages` and pass `twine check` with LICENSE and NOTICE inside. Publish
 polish done 2026-09-25: badges, `CONTRIBUTING.md`, `SECURITY.md`, issue and PR templates,
 PyPI-facing package READMEs. Repo is public with private vulnerability reporting on;
-CI green on every leg. No tag, no release, nothing posted upstream.
+CI green on every leg.
 
 Upstream issue posted 2026-09-25: https://github.com/awslabs/tolap/issues/31.
 
-**Waiting on the owner.**
-1. Publish `django-tolap` and `sqlalchemy-tolap` 0.1.0 to PyPI (and tag) when ready:
-   rebuild with `uv build --all-packages` into a clean `dist/`, run
-   `uv run --with twine twine check dist/*`, then upload. Afterwards drop the "Not on PyPI
-   yet" paragraph in `README.md` and date the `0.1.0 — unreleased` heading in `CHANGELOG.md`.
+**Released.** `django-tolap` and `sqlalchemy-tolap` 0.1.0 published to PyPI 2026-09-25,
+tagged `v0.1.0`. Fresh-venv install and import verified. Commit history rewritten the same
+day to use the GitHub noreply email; `CLAUDE.md` untracked.
+
+**Waiting on the owner.** Nothing for v0.1.0. Next release: create project-scoped PyPI tokens
+or set up trusted publishing before uploading.
 
 **How to resume.** `uv sync && make check` (SQLite). PostgreSQL:
 `DATABASE_URL=postgres://localhost/postgres HYPOTHESIS_PROFILE=ci uv run pytest -q`

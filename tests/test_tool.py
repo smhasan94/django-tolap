@@ -93,6 +93,7 @@ def test_kwargs_take_precedence_over_identity_callable(analyst: DjangoPolicyStor
 def test_supplied_context_bypasses_store_but_is_verified(analyst: DjangoPolicyStore) -> None:
     ctx = issue_context("alice", "clinic", SOURCE)
     assert len(patients_search("o", context=ctx)) == 2
+    assert len(patients_search("o", context=ctx, user_id="alice", tenant_id="clinic")) == 2
     ctx.signature = "tampered"
     with pytest.raises(TolapDenied, match="invalid signature"):
         patients_search("o", context=ctx)

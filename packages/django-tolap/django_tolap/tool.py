@@ -105,7 +105,14 @@ def tolap_tool(
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             supplied: SecurityContext | None = kwargs.pop("context", None)
-            user_id, tenant_id = (None, None) if supplied else _establish(kwargs, identity)
+            if supplied is not None:
+                # Identity is inside the signed context; stray identity kwargs must not
+                # reach the tool function.
+                kwargs.pop("user_id", None)
+                kwargs.pop("tenant_id", None)
+                user_id, tenant_id = None, None
+            else:
+                user_id, tenant_id = _establish(kwargs, identity)
             with tolap_context(user_id, tenant_id, source, context=supplied) as tool:
                 return fn(*args, **{**kwargs, param: tool})
 

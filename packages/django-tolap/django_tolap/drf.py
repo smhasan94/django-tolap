@@ -22,7 +22,7 @@ from tolap_core import EffectivePolicy, WriteOperation, validate_write
 
 from django_tolap.conf import settings
 from django_tolap.contexts import issue_context
-from django_tolap.enforce import enforce, validate
+from django_tolap.enforce import validate
 from django_tolap.exceptions import TolapDenied
 from django_tolap.objects import object_name
 from django_tolap.precheck import FieldRules, field_visible
@@ -86,12 +86,17 @@ class TolapViewSetMixin:
 
     def check_tolap_write(self, request: Request, operation: WriteOperation) -> None:
         queryset = self.get_queryset()  # type: ignore[attr-defined]
-        payload: dict[str, Any] = (
-            dict(request.data) if operation is not WriteOperation.delete else {}
-        )
+        payload: dict[str, Any] = {}
+        if operation is not WriteOperation.delete:
+            data = request.data
+            # A QueryDict (form bodies) maps keys to lists; validate_write wants scalars.
+            payload = data.dict() if hasattr(data, "dict") else dict(data)
         target_row: Any = None
         if operation is not WriteOperation.insert:
-            target_row = self._tolap_target_row(queryset)
+            rows = self._enforced(self._tolap_lookup(queryset))
+            if not rows:
+                raise PermissionDenied(detail="Access denied: target row not permitted")
+            target_row = rows[0]
         result = validate_write(
             operation,
             object_name(queryset.model),
@@ -103,19 +108,12 @@ class TolapViewSetMixin:
         if not result.allowed:
             raise PermissionDenied(detail=f"Access denied: {result.reason}")
 
-    def _tolap_target_row(self, queryset: Any) -> dict[str, Any]:
+    def _tolap_lookup(self, queryset: Any) -> Any:
+        """``queryset`` narrowed to the object the URL names (DRF's lookup conventions)."""
         lookup_field: str = getattr(self, "lookup_field", "pk")
         lookup_url_kwarg: str = getattr(self, "lookup_url_kwarg", None) or lookup_field
         value = self.kwargs.get(lookup_url_kwarg)  # type: ignore[attr-defined]
-        try:
-            rows = enforce(
-                queryset.filter(**{lookup_field: value}), self.get_tolap_context().context
-            )
-        except TolapDenied as exc:
-            raise PermissionDenied(detail=str(exc)) from exc
-        if not rows:
-            raise PermissionDenied(detail="Access denied: target row not permitted")
-        return rows[0]
+        return queryset.filter(**{lookup_field: value})
 
     def _enforced(self, queryset: Any) -> list[dict[str, Any]]:
         try:
@@ -132,10 +130,8 @@ class TolapViewSetMixin:
         return Response(rows)
 
     def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        lookup_field: str = getattr(self, "lookup_field", "pk")
-        lookup_url_kwarg: str = getattr(self, "lookup_url_kwarg", None) or lookup_field
         queryset = self.filter_queryset(self.get_queryset())  # type: ignore[attr-defined]
-        rows = self._enforced(queryset.filter(**{lookup_field: kwargs[lookup_url_kwarg]}))
+        rows = self._enforced(self._tolap_lookup(queryset))
         if not rows:
             raise NotFound()
         return Response(rows[0])

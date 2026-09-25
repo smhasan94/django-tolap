@@ -115,6 +115,11 @@ def test_insert_allowed_when_policy_permits(client: APIClient, alice) -> None:  
     # Writing a hidden field is refused as a whole.
     response = client.post("/api/patients/", {**body, "ssn": "1"}, format="json")
     assert response.status_code == 403 and Patient.objects.count() == 7
+    # Form-encoded bodies (QueryDict) are validated as scalars, not single-item lists.
+    response = client.post("/api/patients/", body)
+    assert response.status_code == 201, response.content
+    response = client.post("/api/patients/", {**body, "ssn": "1"})
+    assert response.status_code == 403 and Patient.objects.count() == 8
 
 
 def test_update_and_delete_gated_by_row_visibility(client: APIClient, alice) -> None:  # type: ignore[no-untyped-def]

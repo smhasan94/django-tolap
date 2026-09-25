@@ -10,7 +10,7 @@ can `pip install` from a git URL and demo. Each story is sized for about one day
 | --- | --- | --- |
 | E1 | QuerySet enforcement core (installable, demoable) | reviewed |
 | E2 | Django-model policy store, admin, contexts | reviewed |
-| E3 | Tool helper and DRF integration | done |
+| E3 | Tool helper and DRF integration | reviewed |
 | E4 | Differential hardening and gap measurement | todo |
 | E5 | Example app, benchmark, README, upstream issue | todo |
 | E6 | SQLAlchemy adapter | todo |
@@ -163,7 +163,7 @@ updated; time-to-first-value walkthrough measured under five minutes by the scri
 
 ---
 
-## E3. Tool helper and DRF integration — status: done
+## E3. Tool helper and DRF integration — status: reviewed
 
 | Story | Title | FRs | Depends on | Status |
 | --- | --- | --- | --- | --- |

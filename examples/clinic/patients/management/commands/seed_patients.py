@@ -6,6 +6,7 @@ import datetime as dt
 import random
 from typing import Any
 
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandParser
 
 from django_tolap.store import DjangoPolicyStore
@@ -47,6 +48,11 @@ class Command(BaseCommand):
                 )
             Patient.objects.bulk_create(batch)
             self.stdout.write(f"  {min(start + BATCH, total):,}/{total:,}")
+        for username in ("alice", "bob"):
+            # Login users for the REST API (password = username; example only).
+            user, _ = get_user_model().objects.get_or_create(username=username)
+            user.set_password(username)
+            user.save()
         store = DjangoPolicyStore()
         for body in (ANALYST, AUDITOR):
             store.save_definition_json(body)

@@ -18,3 +18,19 @@ dj-database-url`.
 
 Memory in the benchmark is the process high-water mark, so the modes run from lightest to
 heaviest and each delta is what that mode added.
+
+## The same policies over REST
+
+`patients/api.py` mounts the model as a DRF viewset with the `django-tolap` mixins; the
+seed creates login users `alice` (analyst) and `bob` (auditor), password = username.
+
+```bash
+uv run python manage.py runserver
+curl -u alice:alice 'http://127.0.0.1:8000/api/patients/?q=jo'   # us-east only, no ssn, hashed email
+curl -u bob:bob     'http://127.0.0.1:8000/api/patients/3/'      # every region, names redacted
+curl -u alice:alice -X DELETE http://127.0.0.1:8000/api/patients/3/   # 403: read-only policy
+curl -u alice:alice http://127.0.0.1:8000/api/schema/            # alice's schema: no ssn, no writes
+```
+
+The schema is served per caller (`SERVE_PUBLIC = False`); `manage.py spectacular` prints
+the full one. `manage.py test patients` runs the API smoke test.

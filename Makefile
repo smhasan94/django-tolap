@@ -23,7 +23,8 @@ gap-report:
 demo:  ## seed the example app on SQLite and run the benchmark
 	cd examples/clinic && rm -f clinic.sqlite3 && PYTHONPATH=. uv run python manage.py migrate -v 0 \
 	  && PYTHONPATH=. uv run python manage.py seed_patients --rows $${ROWS:-100000} \
-	  && PYTHONPATH=. uv run python manage.py benchmark --user alice --markdown
+	  && PYTHONPATH=. uv run python manage.py benchmark --user alice --markdown \
+	  && PYTHONPATH=. uv run python manage.py test patients -v 1
 
 signals:  ## adoption signals: PyPI downloads, repo stats, the upstream issue, tolap-core version
 	scripts/signals.sh

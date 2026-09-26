@@ -253,7 +253,7 @@ says: hidden fields are absent, masked fields carry `x-tolap-mask` (`hash`, `par
 `full`), write methods the policy refuses are absent, and an object the policy cannot query
 has no operations at all. So do not cache a schema generated for one caller and serve it to
 another. To combine with your own schema customisations, subclass `TolapAutoSchema` and set
-it as `schema` on the viewset.
+it as `schema` on the viewset. `examples/clinic/patients/api.py` shows the whole REST path.
 
 ## SQLAlchemy
 

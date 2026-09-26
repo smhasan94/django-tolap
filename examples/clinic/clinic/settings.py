@@ -20,6 +20,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
+    "drf_spectacular",
     "django_tolap",
     "patients",
 ]
@@ -50,3 +52,13 @@ STATIC_URL = "static/"
 USE_TZ = True
 
 TOLAP = {"SIGNING_KEY": os.environ.get("TOLAP_SIGNING_KEY", "example-signing-key")}
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.BasicAuthentication",  # curl -u alice:alice
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+SPECTACULAR_SETTINGS = {"TITLE": "Clinic", "SERVE_PUBLIC": False}

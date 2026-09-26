@@ -37,7 +37,7 @@ and approve the `pypi` environment on the run (`CONTRIBUTING.md` "Releasing").
 
 **Adoption signals.** `make signals` prints PyPI downloads, repo stats, the upstream issue's
 state and whether tolap-core has moved past 1.0.0. Baseline 2026-09-26, day one of 0.2.0:
-django-tolap 162 downloads (mostly CI and mirrors), sqlalchemy-tolap not yet in pypistats,
+django-tolap 162 and sqlalchemy-tolap 91 downloads (mostly CI and mirrors),
 0 stars, 0 issues; upstream tolap 8 stars, our #31 its only open issue, no maintainer reply.
 Check weekly. The next piece of work should come from a user report, a maintainer reply, or
 tolap-core 1.1, not from guessing.

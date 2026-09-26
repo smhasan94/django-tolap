@@ -4,8 +4,8 @@
 tags `django-tolap-v0.2.0` and `sqlalchemy-tolap-v0.2.0`, first real run of the release
 workflow: both jobs succeeded after the `pypi` environment approval). Repo public, private
 vulnerability reporting on, trusted publishing configured. Upstream issue posted:
-https://github.com/awslabs/tolap/issues/31, no maintainer reply yet; a draft update is
-below for the owner to post. CI green on every leg (SQLite matrix, PostgreSQL, MySQL 8.4,
+https://github.com/awslabs/tolap/issues/31, 0.2.0 update posted 2026-09-26, no maintainer
+reply yet. CI green on every leg (SQLite matrix, PostgreSQL, MySQL 8.4,
 quickstart, upstream-main) with a 90% line-and-branch coverage floor; all legs sit at 96%.
 
 **Releasing the next version (owner).** Bump `version` in the package's `pyproject.toml`,
@@ -28,18 +28,6 @@ and approve the `pypi` environment on the run (`CONTRIBUTING.md` "Releasing").
 - `values("related__field")` projections accepted; joined columns keyed as `object.field`
   for the post pass. Gap report: 48 of 48 corpus pairs prepare.
 - `__version__` from package metadata.
-
-**Draft update for awslabs/tolap#31 (owner posts).**
-> Update: `django-tolap` 0.2.0 and `sqlalchemy-tolap` 0.2.0 are on PyPI. New since 0.1:
-> joined-column projections in both adapters (`values("patient__email")`,
-> `select(Patient.id, Encounter.occurred_at)`), keyed to their own object for the post pass;
-> ORM write paths through `validate_write`; raw SQL wrappers over your `prepare_sql_query`;
-> drf-spectacular schemas per caller. One thing worth knowing on your side: with rows that
-> carry columns of two objects, `_row_field_value`'s bare-name fallback can read the wrong
-> object's column when leaf names coincide (`patients.region` vs `encounters.region`). The
-> adapters now key every column `object.field` and resolve each filter to exactly one of
-> them before calling the pipeline, so the fallback is never reached. Happy to open a
-> separate issue if a stricter lookup in core would help.
 
 **Workflow.** Direct commits on `main` (owner's call after PRs #1 to #5). Branches and PRs
 return when the owner asks.

@@ -389,3 +389,16 @@ def test_aliased_root_with_explicit_columns(seeded: Session) -> None:
     assert (
         results[0] == results[1] == [{"id": 1, "where": "us-east"}, {"id": 3, "where": "us-east"}]
     )
+
+
+def test_reserved_filter_key_collision_is_a_denial(seeded: Session) -> None:
+    from sqlalchemy import literal
+
+    from sqlalchemy_tolap.pushdown import RESERVED_KEY
+
+    p = policy({"rowFilters": [{"field": "encounters.region", "operator": "equals", "value": "x"}]})
+    stmt = select(
+        Patient.id, Encounter.occurred_at, literal("x").label("_tolap_encounters_region")
+    ).join(Encounter)
+    prep = prepare_select(stmt, p, dialect="sqlite")
+    assert prep.denial_reason == RESERVED_KEY.format(key="_tolap_encounters_region")

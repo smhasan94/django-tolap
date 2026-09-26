@@ -9,7 +9,10 @@
   filter's column is added for the post pass through that same relation (Django) or FROM
   element (SQLAlchemy, aliases included) and stripped from the result. The refusal `row
   filter field not in result` remains for an object that is not in the query, an object
-  joined only in the WHERE clause, and a column the object does not have.
+  joined only in the WHERE clause, and a column the object does not have. Django refuses an
+  annotation or alias whose name contains `__` (it would be selected in place of the joined
+  column that path names); SQLAlchemy refuses a caller label that collides with the private
+  key of a fetched filter column.
 
 ## 0.2.0 — 2026-09-25
 

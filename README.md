@@ -330,8 +330,10 @@ pushdown but not the checks or the post pass, and returns the same rows.
 
 `values("patient__email")` across a relation is fine: the joined column is checked against
 its own object's rules before execution and shown to the post pass as `patients.email`, so
-that object's masks apply, then handed back under the key you asked for. `only()` and
-`defer()` across relations are still refused.
+that object's masks apply, then handed back under the key you asked for. A policy row
+filter on that object whose field you did not project is evaluated anyway: the field is
+fetched through the same relation for the post pass and dropped from the result. `only()`
+and `defer()` across relations are still refused.
 
 ## Compatibility
 

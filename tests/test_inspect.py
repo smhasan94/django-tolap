@@ -181,8 +181,17 @@ def test_dotted_projection_key_is_refused() -> None:
             "encounters__region", "encounters__diagnoses__encounter__region"
         ),
         lambda: Patient.objects.values("id", "pk"),
+        lambda: Patient.objects.annotate(encounters__region=Value("x")).values("id"),
+        lambda: Patient.objects.alias(encounters__region=Value("x")).values("id"),
     ],
-    ids=["root-again", "column-twice", "second-relation", "pk-twice"],
+    ids=[
+        "root-again",
+        "column-twice",
+        "second-relation",
+        "pk-twice",
+        "path-annotation",
+        "path-alias",
+    ],
 )
 def test_joined_projection_refused(qs_factory) -> None:  # type: ignore[no-untyped-def]
     with pytest.raises(Uninspectable):

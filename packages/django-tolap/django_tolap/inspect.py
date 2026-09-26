@@ -209,10 +209,13 @@ def _projection(
     root = _root_model(query)
     concrete = {f.name for f in root._meta.concrete_fields}
     lowered = {n.lower() for n in concrete}
-    for name in query.annotation_select:
+    for name in query.annotations:  # selected or not: a filter may reach for the path
         if "." in name:
             # Qualified keys are what the post pass sees joined columns under.
             raise Uninspectable(f"projection key {name!r} contains a dot")
+        if "__" in name:
+            # A relation path is how a joined column, or a filter's column, is projected.
+            raise Uninspectable(f"annotation {name!r} looks like a relation path")
         if name.lower() in lowered:
             # Django refuses the exact name; upstream's matching is case-insensitive.
             raise Uninspectable(f"annotation {name!r} shadows a field of {root._meta.label}")

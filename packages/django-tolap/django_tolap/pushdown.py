@@ -322,8 +322,8 @@ def _filter_fields(
         qualifier, _, leaf = rf.field.rpartition(".")
         name = _root_filter_field(rf, root)
         if name is not None:
-            addition: tuple[str, str] | None = (name, f"{root_obj}.{name}")
             target = f"{root_obj}.{name}"
+            addition: tuple[str, str] | None = (name, target)
         elif qualifier:
             addition = _joined_filter_field(ins, qualifier, leaf)
             target = f"{qualifier}.{leaf}"

@@ -197,6 +197,7 @@ def compile_filter(
 
 NO_FIELDS_VISIBLE = "no fields visible"
 FILTER_NOT_IN_RESULT = "row filter field not in result: {field}"
+RESERVED_KEY = "projection key {key!r} is reserved for a filter column"
 
 
 @dataclass
@@ -285,12 +286,8 @@ def _filter_columns(
         qualifier, _, leaf = rf.field.rpartition(".")
         col = resolve_column(rf, root)
         if col is not None:
-            addition: tuple[str, Any, str] | None = (
-                col.name,
-                by_name[col.name],
-                f"{root.name}.{col.name}",
-            )
             target = f"{root.name}.{col.name}"
+            addition: tuple[str, Any, str] | None = (col.name, by_name[col.name], target)
         elif qualifier:
             addition = _joined_filter_column(ins, qualifier, leaf)
             target = f"{qualifier}.{leaf}"
@@ -301,6 +298,8 @@ def _filter_columns(
             if addition is None:
                 return extra, keys, mapped, FILTER_NOT_IN_RESULT.format(field=rf.field)
             caller, element, presented = addition
+            if caller in mapped or caller in (ins.projected or ()):
+                return extra, keys, mapped, RESERVED_KEY.format(key=caller)
             extra.append((caller, element))
             mapped[caller] = presented
             lowered[presented.lower()] = caller

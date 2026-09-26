@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### both
+
+- A policy row filter on a joined object whose column is not in the result no longer
+  refuses the query when the caller projected some other column of that object: the
+  filter's column is added for the post pass through that same relation (Django) or FROM
+  element (SQLAlchemy, aliases included) and stripped from the result. The refusal `row
+  filter field not in result` remains for an object that is not in the query, an object
+  joined only in the WHERE clause, and a column the object does not have.
+
 ## 0.2.0 — 2026-09-25
 
 ### django-tolap

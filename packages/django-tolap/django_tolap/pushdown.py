@@ -37,7 +37,7 @@ from django.db.models import Manager, Model, Q
 from tolap_core import EffectivePolicy, FilterOperator, RowFilter, apply_result_pipeline
 
 from django_tolap.exceptions import Uninspectable
-from django_tolap.inspect import inspect
+from django_tolap.inspect import Inspection, inspect
 from django_tolap.objects import object_name
 from django_tolap.precheck import CANNOT_INSPECT, FieldRules, field_visible, precheck_inspection
 
@@ -279,18 +279,39 @@ def _root_filter_field(rf: RowFilter, model: type[Model]) -> str | None:
     return field.name if field is not None else None
 
 
+def _joined_filter_field(ins: Inspection, qualifier: str, leaf: str) -> tuple[str, str] | None:
+    """A ``values()`` path and post-pass key for a joined object's field not yet projected.
+
+    The path reuses the relation of a column the caller projected from that object, so the
+    same join answers; an object joined only in the WHERE clause offers no path.
+    """
+    for key, ref in ins.joined.items():
+        if object_name(ref.model).lower() != qualifier.lower():
+            continue
+        field = next(
+            (f for f in ref.model._meta.concrete_fields if f.name.lower() == leaf.lower()), None
+        )
+        if field is None:
+            return None
+        prefix = key.rsplit("__", 1)[0]
+        return f"{prefix}__{field.name}", f"{object_name(ref.model)}.{field.name}"
+    return None
+
+
 def _filter_fields(
-    root: type[Model], row_filters: list[RowFilter], key_map: dict[str, str]
+    ins: Inspection, root: type[Model], row_filters: list[RowFilter], key_map: dict[str, str]
 ) -> tuple[list[str], dict[str, str], dict[str, str], str | None]:
     """Resolve every row filter to exactly one field of the result, for the post pass.
 
     A bare or root-qualified field names a root field; another qualifier names a joined
-    object's field; both are matched case-insensitively against ``key_map``. Returns the
-    root fields to add for filters (``extra``), the filter spellings to copy from a caller
-    key when they differ from the field's post-pass key (``filter_keys``), the key map
-    extended with the additions, or a denial: a filter whose field is not in the result
-    and cannot be added cannot be evaluated, and upstream would drop the row or, by
-    bare-name fallback, read another object's field of the same name.
+    object's field; both are matched case-insensitively against ``key_map``. A field the
+    result lacks is added for the post pass (``extra``): a root field by name, a joined
+    object's field through the relation of a column already projected from that object.
+    Returns those additions, the filter spellings to copy from a caller key when they
+    differ from the field's post-pass key (``filter_keys``), the key map extended with the
+    additions, or a denial: a filter whose field is in no projected object cannot be
+    evaluated, and upstream would drop the row or, by bare-name fallback, read another
+    object's field of the same name (decision 2026-09-25).
     """
     root_obj = object_name(root)
     mapped = dict(key_map)
@@ -301,17 +322,21 @@ def _filter_fields(
         qualifier, _, leaf = rf.field.rpartition(".")
         name = _root_filter_field(rf, root)
         if name is not None:
+            addition: tuple[str, str] | None = (name, f"{root_obj}.{name}")
             target = f"{root_obj}.{name}"
-            caller = lowered.get(target.lower())
-            if caller is None:
-                caller = name
-                extra.append(caller)
-                mapped[caller] = target
-                lowered[target.lower()] = caller
+        elif qualifier:
+            addition = _joined_filter_field(ins, qualifier, leaf)
+            target = f"{qualifier}.{leaf}"
         else:
-            caller = lowered.get(f"{qualifier}.{leaf}".lower()) if qualifier else None
-            if caller is None:
+            addition, target = None, rf.field
+        caller = lowered.get(target.lower())
+        if caller is None:
+            if addition is None:
                 return extra, keys, mapped, FILTER_NOT_IN_RESULT.format(field=rf.field)
+            caller, presented = addition
+            extra.append(caller)
+            mapped[caller] = presented
+            lowered[presented.lower()] = caller
         if mapped[caller] != rf.field:
             keys[rf.field] = caller
     return extra, keys, mapped, None
@@ -375,7 +400,7 @@ def prepare_queryset(
         key_map["pk"] = f"{obj}.{root._meta.pk.name}"
 
     row_filters = list(policy.object_rules.row_filters or ()) if policy.object_rules else []
-    extra, filter_keys, key_map, denial = _filter_fields(root, row_filters, key_map)
+    extra, filter_keys, key_map, denial = _filter_fields(ins, root, row_filters, key_map)
     if denial is not None:
         return Preparation.denied(denial)
     projection = (*base, *extra)

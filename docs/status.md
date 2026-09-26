@@ -13,6 +13,12 @@ date the changelog heading, `uv lock`, commit, then
 `git tag -a <package>-vX.Y.Z -m "<package> X.Y.Z" && git push origin <package>-vX.Y.Z`
 and approve the `pypi` environment on the run (`CONTRIBUTING.md` "Releasing").
 
+**Unreleased on `main`.**
+- Both adapters: a row filter on a joined object whose column is not projected now adds
+  that column for the post pass (through the projected column's relation or FROM element)
+  instead of refusing; refusal remains for absent objects, WHERE-only joins and unknown
+  columns.
+
 **In 0.2.0 (see `CHANGELOG.md`).**
 - sqlalchemy-tolap: joined and labelled column projections (`select(Patient.id,
   Encounter.occurred_at)`, `Encounter.region.label("er")`), keyed to their own table for the
@@ -61,7 +67,8 @@ Regenerate the gap report with `DATABASE_URL=<postgres> make gap-report`.
   (SQLAlchemy) or an object reached twice (Django) and a column projected twice, resolve
   every filter to exactly one column of the result (root or
   joined, case-insensitively) and copy it under the filter's own spelling
-  (`Preparation.filter_keys`); a filter whose column is not in the result is refused.
+  (`Preparation.filter_keys`); a filter whose column is not in the result is added when
+  the object is projected, refused otherwise.
   Keep the property tests' encounter regions different from the patient's; equal regions
   hide this class of bug. The differential harnesses treat "denied in both modes with the
   same reason" as agreement.

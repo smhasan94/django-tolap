@@ -16,12 +16,12 @@ from typing import Any, Literal
 
 from sqlalchemy import Column, Table, and_, false, or_, true
 from sqlalchemy import types as sa_types
-from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.sql.elements import ColumnElement, Label
 from sqlalchemy.sql.selectable import Select
 from tolap_core import EffectivePolicy, FilterOperator, RowFilter, apply_result_pipeline
 
 from sqlalchemy_tolap.exceptions import Uninspectable
-from sqlalchemy_tolap.inspect import inspect
+from sqlalchemy_tolap.inspect import Inspection, base_table, inspect
 from sqlalchemy_tolap.precheck import CANNOT_INSPECT, precheck_inspection
 from sqlalchemy_tolap.rules import FieldRules, field_visible
 
@@ -232,38 +232,78 @@ class Preparation:
         return cls(allowed=False, statement=None, denial_reason=reason)
 
 
+def _joined_filter_column(
+    ins: Inspection, qualifier: str, leaf: str
+) -> tuple[str, Any, str] | None:
+    """A private key, labelled column and post-pass key for a joined table's column not yet
+    projected.
+
+    The column comes from the FROM element (table or alias) of a column the caller projected
+    from that table, so the same join answers; a table joined only in the WHERE clause
+    offers no element.
+    """
+    for selected in ins.selected:
+        col = selected.element if isinstance(selected, Label) else selected
+        if not isinstance(col, Column):
+            continue
+        table = base_table(col)
+        if table.name.lower() != qualifier.lower():
+            continue
+        owner = col.table
+        column = next((c for c in owner.c if c.name.lower() == leaf.lower()), None)
+        if column is None:
+            return None
+        key = f"_tolap_{table.name}_{column.name}"
+        return key, column.label(key), f"{table.name}.{column.name}"
+    return None
+
+
 def _filter_columns(
-    root: Table, row_filters: list[RowFilter], key_map: dict[str, str]
-) -> tuple[list[str], dict[str, str], dict[str, str], str | None]:
+    ins: Inspection,
+    root: Table,
+    row_filters: list[RowFilter],
+    key_map: dict[str, str],
+    by_name: dict[str, Any],
+) -> tuple[list[tuple[str, Any]], dict[str, str], dict[str, str], str | None]:
     """Resolve every row filter to exactly one column of the result, for the post pass.
 
     A bare or root-qualified field names a root column; another qualifier names a joined
-    table's column; both are matched case-insensitively against ``key_map``. Returns the
-    root columns to add for filters (``extra``), the filter spellings to copy from a caller
-    key when they differ from the column's post-pass key (``filter_keys``), the key map
-    extended with the additions, or a denial: a filter whose column is not in the result
-    and cannot be added cannot be evaluated, and upstream would drop the row or, by
-    bare-name fallback, read another table's column of the same name.
+    table's column; both are matched case-insensitively against ``key_map``. A column the
+    result lacks is added for the post pass (``extra``, as key and column element): a root
+    column by name, a joined table's column from the FROM element of a column already
+    projected from that table. Returns those additions, the filter spellings to copy from a
+    caller key when they differ from the column's post-pass key (``filter_keys``), the key
+    map extended with the additions, or a denial: a filter whose column is in no projected
+    table cannot be evaluated, and upstream would drop the row or, by bare-name fallback,
+    read another table's column of the same name (decision 2026-09-25).
     """
     mapped = dict(key_map)
     lowered = {presented.lower(): key for key, presented in mapped.items()}
-    extra: list[str] = []
+    extra: list[tuple[str, Any]] = []
     keys: dict[str, str] = {}
     for rf in row_filters:
         qualifier, _, leaf = rf.field.rpartition(".")
         col = resolve_column(rf, root)
         if col is not None:
+            addition: tuple[str, Any, str] | None = (
+                col.name,
+                by_name[col.name],
+                f"{root.name}.{col.name}",
+            )
             target = f"{root.name}.{col.name}"
-            caller = lowered.get(target.lower())
-            if caller is None:
-                caller = col.name
-                extra.append(caller)
-                mapped[caller] = target
-                lowered[target.lower()] = caller
+        elif qualifier:
+            addition = _joined_filter_column(ins, qualifier, leaf)
+            target = f"{qualifier}.{leaf}"
         else:
-            caller = lowered.get(f"{qualifier}.{leaf}".lower()) if qualifier else None
-            if caller is None:
+            addition, target = None, rf.field
+        caller = lowered.get(target.lower())
+        if caller is None:
+            if addition is None:
                 return extra, keys, mapped, FILTER_NOT_IN_RESULT.format(field=rf.field)
+            caller, element, presented = addition
+            extra.append((caller, element))
+            mapped[caller] = presented
+            lowered[presented.lower()] = caller
         if mapped[caller] != rf.field:
             keys[rf.field] = caller
     return extra, keys, mapped, None
@@ -305,11 +345,12 @@ def prepare_select(
     key_map.update({n: f"{root.name}.{n}" for n in names if n not in key_map and n in by_name})
 
     row_filters = list(policy.object_rules.row_filters or ()) if policy.object_rules else []
-    extra, filter_keys, key_map, denial = _filter_columns(root, row_filters, key_map)
+    extra, filter_keys, key_map, denial = _filter_columns(ins, root, row_filters, key_map, by_name)
     if denial is not None:
         return Preparation.denied(denial)
-    for name in extra:
-        base.append(by_name[name])
+    extra_keys = [key for key, _ in extra]
+    for _, element in extra:
+        base.append(element)
 
     sliced = ins.limit is not None or ins.offset is not None
     push = resolved_mode is EnforcementMode.rewrite_and_post and not sliced
@@ -342,8 +383,8 @@ def prepare_select(
         unpushable_filters=unpushable,
         pushed_filters=pushed,
         visible_fields=visible,
-        projection=(*names, *extra),
-        extra_fields=tuple(extra),
+        projection=(*names, *extra_keys),
+        extra_fields=tuple(extra_keys),
         key_map=key_map,
         filter_keys=filter_keys,
         max_results=max_results,

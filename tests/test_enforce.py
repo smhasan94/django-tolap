@@ -295,12 +295,36 @@ def test_qualified_root_filter_is_not_intercepted_by_a_joined_key(seeded: None) 
     assert results[0] == results[1]
     ids = {r["id"] for r in results[0]}
     assert all(r["encounters__region"] == "us-east" for r in results[0]) and {1, 5} <= ids
-    # A filter on a joined object whose field is not in the result cannot be evaluated.
-    denied = prepare_queryset(Patient.objects.values("id", "encounters__occurred_at"), joined)
-    assert denied.denial_reason == FILTER_NOT_IN_RESULT.format(field="Encounters.Region")
-    # A filter on an object outside the query cannot be evaluated either.
+    # A filter on a joined object whose field is not in the result: the field is projected
+    # for the post pass through the same relation and stripped after.
+    qs = Patient.objects.values("id", "encounters__occurred_at").order_by("id", "encounters__id")
+    prep = prepare_queryset(qs, joined)
+    assert prep.allowed and prep.extra_fields == ("encounters__region",)
+    results = [enforce(qs, signed(joined), mode=mode) for mode in EnforcementMode]
+    assert results[0] == results[1]
+    assert all(set(r) == {"id", "encounters__occurred_at"} for r in results[0])
+    assert {r["id"] for r in results[0]} == {1, 3, 5}  # every patient with a us-east encounter
+    assert len(results[0]) == Encounter.objects.filter(region="us-east").count()
+    # A field the joined object does not have cannot be projected.
+    bogus = effective_policy(
+        {
+            "permissions": {"canQuery": True},
+            "objectRules": {
+                "rowFilters": [{"field": "encounters.nope", "operator": "equals", "value": 1}]
+            },
+        }
+    )
+    assert prepare_queryset(qs, bogus).denial_reason == FILTER_NOT_IN_RESULT.format(
+        field="encounters.nope"
+    )
+    # A filter on an object outside the query cannot be evaluated (decision 2026-09-25).
     outside = prepare_queryset(Patient.objects.values("id"), joined)
     assert outside.denial_reason == FILTER_NOT_IN_RESULT.format(field="Encounters.Region")
+    # Joined only in the WHERE clause, nothing projected from it: no relation path to use.
+    where_only = Patient.objects.filter(encounters__status="active").values("id")
+    assert prepare_queryset(where_only, joined).denial_reason == FILTER_NOT_IN_RESULT.format(
+        field="Encounters.Region"
+    )
 
 
 def test_callers_own_key_for_a_filtered_field_is_kept(seeded: None) -> None:

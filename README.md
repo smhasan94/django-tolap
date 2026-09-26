@@ -279,7 +279,9 @@ and labels are explicit references. Columns of a joined table, bare or labelled,
 labelled root columns are pre-checked and masked under their own table's rules and returned
 under the caller's key (`select(Patient.id, Encounter.occurred_at)`,
 `Encounter.region.label("encounter_region")`); a projection key that repeats or that is
-named like a root column other than itself is refused, so label it. `text()`,
+named like a root column other than itself is refused, so label it. A policy row filter on
+a joined table whose column is not selected is evaluated anyway: the column is fetched for
+the post pass from the same FROM element and dropped from the result. `text()`,
 `literal_column()`, derived tables in `FROM` and set operations are refused. Install with
 `pip install sqlalchemy-tolap`.
 

@@ -310,16 +310,44 @@ def test_qualified_root_filter_is_not_intercepted_by_a_renamed_key(seeded: Sessi
     assert all(r["er"] == "us-east" for r in results[0]) and 5 in {r["id"] for r in results[0]}
     assert 1 in {r["id"] for r in results[0]}  # patient 1 keeps its seeded us-east encounter
 
-    # A filter on a joined table whose column is not in the result cannot be evaluated.
+    # A filter on a joined table whose column is not in the result: the column is projected
+    # for the post pass from the same FROM element and stripped after.
+    from sqlalchemy.orm import aliased
+
     from sqlalchemy_tolap.pushdown import FILTER_NOT_IN_RESULT
 
-    bare = select(Patient.id, Encounter.occurred_at).join(Encounter)
+    e = aliased(Encounter)
+    bare = (
+        select(Patient.id, e.occurred_at)
+        .join(e, e.patient_id == Patient.id)
+        .order_by(Patient.id, e.id)
+    )
     prep = prepare_select(bare, joined, dialect=dialect_name(seeded))
-    assert not prep.allowed
-    assert prep.denial_reason == FILTER_NOT_IN_RESULT.format(field="Encounters.Region")
-    # A filter on a table outside the query cannot be evaluated either.
+    assert prep.allowed and len(prep.extra_fields) == 1
+    results = [
+        enforce(bare, signed(joined), seeded, signing_key=SIGNING_KEY, mode=mode)
+        for mode in EnforcementMode
+    ]
+    assert results[0] == results[1]
+    assert all(set(r) == {"id", "occurred_at"} for r in results[0])
+    assert {r["id"] for r in results[0]} == {1, 3, 5}  # every patient with a us-east encounter
+    expected = seeded.execute(
+        select(func.count()).select_from(encounters).where(encounters.c.region == "us-east")
+    ).scalar()
+    assert len(results[0]) == expected  # the alias was reused: no second FROM copy
+    # A column the joined table does not have cannot be projected.
+    bogus = policy({"rowFilters": [{"field": "encounters.nope", "operator": "equals", "value": 1}]})
+    assert prepare_select(
+        bare, bogus, dialect="sqlite"
+    ).denial_reason == FILTER_NOT_IN_RESULT.format(field="encounters.nope")
+    # A filter on a table outside the query cannot be evaluated (decision 2026-09-25).
     outside = prepare_select(select(Patient.id), joined, dialect=dialect_name(seeded))
     assert outside.denial_reason == FILTER_NOT_IN_RESULT.format(field="Encounters.Region")
+    # Joined only in the WHERE clause, nothing projected from it: no FROM element to use.
+    where_only = select(Patient.id).join(Encounter).where(Encounter.status == "active")
+    assert prepare_select(
+        where_only, joined, dialect="sqlite"
+    ).denial_reason == FILTER_NOT_IN_RESULT.format(field="Encounters.Region")
 
 
 def test_filter_on_a_labelled_root_column_beside_a_joined_namesake(seeded: Session) -> None:

@@ -1,8 +1,8 @@
 # Status (saved 2026-09-26)
 
-**Where we are.** 0.2.1 of both packages prepared on `main`, waiting for the owner's tags
-(`django-tolap-v0.2.1`, `sqlalchemy-tolap-v0.2.1`) and the `pypi` environment approval.
-PyPI carries 0.2.0 of both (released 2026-09-26). Repo public, private
+**Where we are.** `django-tolap` 0.2.1 and `sqlalchemy-tolap` 0.2.1 on PyPI (2026-09-26,
+tags `django-tolap-v0.2.1` and `sqlalchemy-tolap-v0.2.1`; release workflow green both times
+after the `pypi` environment approval). Nothing unreleased on `main`. Repo public, private
 vulnerability reporting on, trusted publishing configured. Upstream issue posted:
 https://github.com/awslabs/tolap/issues/31, 0.2.0 update posted 2026-09-26, no maintainer
 reply yet. CI green on every leg (SQLite matrix, PostgreSQL, MySQL 8.4,

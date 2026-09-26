@@ -1,21 +1,17 @@
-# Status (saved 2026-09-25, late)
+# Status (saved 2026-09-26)
 
-**Where we are.** 0.2.0 of both packages is on `main`, versions bumped, changelog dated,
-waiting for the owner to tag (rule 5). PyPI still carries `django-tolap` 0.1.1 and
-`sqlalchemy-tolap` 0.1.0. Repo public, private vulnerability reporting on, trusted publishing
-configured (PyPI publishers and the `pypi` GitHub environment exist). Upstream issue posted:
-https://github.com/awslabs/tolap/issues/31, no maintainer reply yet. CI green on every leg
-(SQLite matrix, PostgreSQL, MySQL 8.4, quickstart, upstream-main) with a 90% line-and-branch
-coverage floor; all legs sit at 96%.
+**Where we are.** `django-tolap` 0.2.0 and `sqlalchemy-tolap` 0.2.0 on PyPI (2026-09-26,
+tags `django-tolap-v0.2.0` and `sqlalchemy-tolap-v0.2.0`, first real run of the release
+workflow: both jobs succeeded after the `pypi` environment approval). Repo public, private
+vulnerability reporting on, trusted publishing configured. Upstream issue posted:
+https://github.com/awslabs/tolap/issues/31, no maintainer reply yet; a draft update is
+below for the owner to post. CI green on every leg (SQLite matrix, PostgreSQL, MySQL 8.4,
+quickstart, upstream-main) with a 90% line-and-branch coverage floor; all legs sit at 96%.
 
-**To release 0.2.0 (owner).** On `main` at the bump commit:
-```
-git tag -a django-tolap-v0.2.0 -m "django-tolap 0.2.0" && git push origin django-tolap-v0.2.0
-git tag -a sqlalchemy-tolap-v0.2.0 -m "sqlalchemy-tolap 0.2.0" && git push origin sqlalchemy-tolap-v0.2.0
-```
-The release workflow does the rest (`CONTRIBUTING.md` "Releasing"). It has not run for real
-yet; watch its first run. Afterwards update "Where we are" here and post the update drafted
-below on awslabs/tolap#31.
+**Releasing the next version (owner).** Bump `version` in the package's `pyproject.toml`,
+date the changelog heading, `uv lock`, commit, then
+`git tag -a <package>-vX.Y.Z -m "<package> X.Y.Z" && git push origin <package>-vX.Y.Z`
+and approve the `pypi` environment on the run (`CONTRIBUTING.md` "Releasing").
 
 **In 0.2.0 (see `CHANGELOG.md`).**
 - sqlalchemy-tolap: joined and labelled column projections (`select(Patient.id,
@@ -33,7 +29,7 @@ below on awslabs/tolap#31.
   for the post pass. Gap report: 48 of 48 corpus pairs prepare.
 - `__version__` from package metadata.
 
-**Draft update for awslabs/tolap#31 (owner posts, after the tags).**
+**Draft update for awslabs/tolap#31 (owner posts).**
 > Update: `django-tolap` 0.2.0 and `sqlalchemy-tolap` 0.2.0 are on PyPI. New since 0.1:
 > joined-column projections in both adapters (`values("patient__email")`,
 > `select(Patient.id, Encounter.occurred_at)`), keyed to their own object for the post pass;

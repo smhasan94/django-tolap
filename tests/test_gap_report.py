@@ -34,8 +34,9 @@ def test_report_renders(seeded: None) -> None:
     assert "# Documented limits" in text
     corpus_rows = (len(CORPUS) + len(SA_CORPUS)) * len(POLICIES)
     assert text.count("| `") == corpus_rows + len(REFUSED) + len(SA_REFUSED)
-    assert text.count("| django-tolap |") == len(REFUSED)
-    assert text.count("| sqlalchemy-tolap |") == len(SA_REFUSED)
+    # Row starts only: the corpus tables' header lines end in these cells too.
+    assert text.count("\n| django-tolap | ") == len(REFUSED)
+    assert text.count("\n| sqlalchemy-tolap | ") == len(SA_REFUSED)
 
 
 @pytest.mark.parametrize("entry", REFUSED, ids=lambda e: e[0])

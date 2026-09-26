@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import column, exists, func, literal_column, or_, select, text
 from sqlalchemy.orm import aliased
 
 from tests.sqlalchemy.models import Encounter, Patient, encounters, patients
@@ -118,4 +118,52 @@ SA_CORPUS: list[tuple[str, Factory, str]] = [
         lambda: select(Patient).where(Patient.date_of_birth.between("1970-01-01", "1989-12-31")),
         "BETWEEN on dates",
     ),
+]
+
+
+_other = aliased(Patient)
+
+SA_REFUSED: list[tuple[str, Factory, str]] = [
+    # Shapes sqlalchemy-tolap refuses by design; every entry must be refused.
+    ("text", lambda: select(Patient.id).where(text("1=1")), "text(): opaque SQL"),
+    (
+        "literal_column",
+        lambda: select(literal_column("42").label("x"), Patient.id),
+        "literal_column(): opaque SQL",
+    ),
+    (
+        "unattached",
+        lambda: select(Patient.id).where(column("region") == "x"),
+        "unattached column()",
+    ),
+    ("union", lambda: select(Patient.id).union(select(Patient.id)), "UNION"),
+    (
+        "subquery_from",
+        lambda: select(patients.c.id).select_from(select(patients).subquery()),
+        "derived table in FROM",
+    ),
+    ("two_entities", lambda: select(Patient, Encounter), "two entities projected"),
+    (
+        "duplicate_key",
+        lambda: select(Patient.status, Encounter.status).join(Encounter),
+        "two projected columns with one key: label one",
+    ),
+    (
+        "joined_shadows_root",
+        lambda: select(Patient.id, Encounter.region).join(Encounter),
+        "bare joined column named like a root column: label it",
+    ),
+    (
+        "self_join",
+        lambda: select(Patient.id, _other.region.label("other")).join(
+            _other, _other.id == Patient.id
+        ),
+        "the same table twice in FROM",
+    ),
+    (
+        "dotted_label",
+        lambda: select(Patient.id, func.upper(Patient.full_name).label("encounters.status")),
+        "label with a dot: reserved for the post pass",
+    ),
+    ("unlabelled", lambda: select(func.count(Patient.id)), "unlabelled expression"),
 ]

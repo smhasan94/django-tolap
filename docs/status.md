@@ -18,6 +18,10 @@ and approve the `pypi` environment on the run (`CONTRIBUTING.md` "Releasing").
   that column for the post pass (through the projected column's relation or FROM element)
   instead of refusing; refusal remains for absent objects, WHERE-only joins and unknown
   columns.
+- Gap report: a "Documented limits" section lists every shape each adapter refuses by
+  design with the reason it gives (`tests/gap/corpus.py` `REFUSED`, `sa_corpus.py`
+  `SA_REFUSED`); `tests/test_gap_report.py` asserts each is refused, so the list cannot
+  drift from the code.
 - Example app: the clinic policies over a DRF endpoint (`patients/api.py`) with a per-caller
   schema, login users alice/bob from the seed, `manage.py test patients` smoke test run by
   `make demo` (CI quickstart leg).

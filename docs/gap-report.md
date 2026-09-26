@@ -120,3 +120,30 @@ Statements rendered with `str(stmt.compile(dialect, compile_kwargs={'literal_bin
 | `join_columns` | joined column | rewritten; unpushed: none | no (OperationalError) | pushed 2/2 filters, 8 visible cols, 3 rows fetched |
 | `join_label` | labelled joined column | rewritten; unpushed: none | no (OperationalError) | pushed 2/2 filters, 8 visible cols, 3 rows fetched |
 | `between_dates` | BETWEEN on dates | rewritten; unpushed: none | yes | pushed 2/2 filters, 8 visible cols, 2 rows fetched |
+
+# Documented limits
+
+Shapes the adapters refuse on purpose, with the reason each gives. Fetching less is never a risk; returning more is. `tests/test_gap_report.py` asserts every row is refused.
+
+| Adapter | Shape | Example | Reason |
+| --- | --- | --- | --- |
+| django-tolap | extra(): opaque SQL | `extra` | query cannot be inspected: raw SQL fragments are not supported |
+| django-tolap | RawSQL annotation: opaque SQL | `raw_sql_annotation` | query cannot be inspected: raw SQL fragments are not supported |
+| django-tolap | UNION | `union` | query cannot be inspected: union() is not supported |
+| django-tolap | only()/defer() across a relation | `only_across_relation` | query cannot be inspected: only()/defer() across relations is not supported |
+| django-tolap | annotation named with a dot: reserved for the post pass | `dotted_annotation` | query cannot be inspected: projection key 'encounters.status' contains a dot |
+| django-tolap | annotation named like a relation path | `path_annotation` | query cannot be inspected: annotation 'encounters__region' looks like a relation path |
+| django-tolap | annotation shadowing a field in another case | `case_shadow_annotation` | query cannot be inspected: annotation 'REGION' shadows a field of testapp.Patient |
+| django-tolap | relation path back to the root object | `root_again` | query cannot be inspected: projection of 'encounters__patient__email' reaches the root object again |
+| django-tolap | pk beside the pk field | `pk_twice` | query cannot be inspected: projection of 'pk' repeats 'id' |
+| sqlalchemy-tolap | text(): opaque SQL | `text` | query cannot be inspected: TextClause is not supported |
+| sqlalchemy-tolap | literal_column(): opaque SQL | `literal_column` | query cannot be inspected: literal_column() is not supported |
+| sqlalchemy-tolap | unattached column() | `unattached` | query cannot be inspected: an unattached column() is not supported |
+| sqlalchemy-tolap | UNION | `union` | query cannot be inspected: CompoundSelect is not a Select |
+| sqlalchemy-tolap | derived table in FROM | `subquery_from` | query cannot be inspected: Subquery in FROM is not supported |
+| sqlalchemy-tolap | two entities projected | `two_entities` | query cannot be inspected: projection of an entity other than the root table is not supported |
+| sqlalchemy-tolap | two projected columns with one key: label one | `duplicate_key` | query cannot be inspected: projection key 'status' shadows a column of patients; label it |
+| sqlalchemy-tolap | bare joined column named like a root column: label it | `joined_shadows_root` | query cannot be inspected: projection key 'region' shadows a column of patients; label it |
+| sqlalchemy-tolap | the same table twice in FROM | `self_join` | query cannot be inspected: two FROM entries share the post-pass name patients |
+| sqlalchemy-tolap | label with a dot: reserved for the post pass | `dotted_label` | query cannot be inspected: projection key 'encounters.status' contains a dot |
+| sqlalchemy-tolap | unlabelled expression | `unlabelled` | query cannot be inspected: an unlabelled expression in the projection is not supported |

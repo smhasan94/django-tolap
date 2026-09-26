@@ -12,6 +12,7 @@ from collections.abc import Callable
 from typing import Any
 
 from django.db.models import Avg, Count, Exists, F, OuterRef, Q, Subquery, TextField, Value
+from django.db.models.expressions import RawSQL
 from django.db.models.functions import Concat, Upper
 
 from tests.harness.fixtures import effective_policy
@@ -146,3 +147,42 @@ POLICIES: dict[str, Any] = {
         }
     ),
 }
+
+
+REFUSED: list[tuple[str, Factory, str]] = [
+    # Shapes django-tolap refuses by design; the report prints the reason for each so the
+    # documented limits cannot drift from the code. Every entry must be refused.
+    ("extra", lambda: Patient.objects.extra(where=["1=1"]), "extra(): opaque SQL"),
+    (
+        "raw_sql_annotation",
+        lambda: Patient.objects.annotate(x=RawSQL("1", ())),
+        "RawSQL annotation: opaque SQL",
+    ),
+    ("union", lambda: Patient.objects.values("id").union(Patient.objects.values("id")), "UNION"),
+    (
+        "only_across_relation",
+        lambda: Patient.objects.only("encounters__status"),
+        "only()/defer() across a relation",
+    ),
+    (
+        "dotted_annotation",
+        lambda: Patient.objects.annotate(**{"encounters.status": F("id")}).values("id"),
+        "annotation named with a dot: reserved for the post pass",
+    ),
+    (
+        "path_annotation",
+        lambda: Patient.objects.annotate(encounters__region=Value("x")).values("id"),
+        "annotation named like a relation path",
+    ),
+    (
+        "case_shadow_annotation",
+        lambda: Patient.objects.annotate(REGION=F("id")).values("id", "REGION"),
+        "annotation shadowing a field in another case",
+    ),
+    (
+        "root_again",
+        lambda: Patient.objects.values("id", "encounters__patient__email"),
+        "relation path back to the root object",
+    ),
+    ("pk_twice", lambda: Patient.objects.values("id", "pk"), "pk beside the pk field"),
+]

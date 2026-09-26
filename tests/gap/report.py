@@ -28,8 +28,8 @@ from tolap_core import SqlDialect, prepare_sql_query  # noqa: E402
 
 from django_tolap.pushdown import prepare_queryset  # noqa: E402
 from sqlalchemy_tolap.pushdown import prepare_select  # noqa: E402
-from tests.gap.corpus import CORPUS, POLICIES  # noqa: E402
-from tests.gap.sa_corpus import SA_CORPUS  # noqa: E402
+from tests.gap.corpus import CORPUS, POLICIES, REFUSED  # noqa: E402
+from tests.gap.sa_corpus import SA_CORPUS, SA_REFUSED  # noqa: E402
 from tests.harness.seed import ENCOUNTERS, PATIENTS, seed  # noqa: E402
 
 DIALECTS = {"postgresql": SqlDialect.postgres, "sqlite": SqlDialect.ansi}
@@ -179,6 +179,29 @@ def render_sqlalchemy() -> str:
     return "\n".join(lines)
 
 
+def render_limits() -> str:
+    """Shapes each adapter refuses by design, with the reason it gives (documented limits)."""
+    policy = next(iter(POLICIES.values()))
+    session = _sa_session()
+    lines = [
+        "# Documented limits",
+        "",
+        "Shapes the adapters refuse on purpose, with the reason each gives. Fetching less is never "
+        "a risk; returning more is. `tests/test_gap_report.py` asserts every row is refused.",
+        "",
+        "| Adapter | Shape | Example | Reason |",
+        "| --- | --- | --- | --- |",
+    ]
+    for name, factory, description in REFUSED:
+        reason = prepare_queryset(factory(), policy).denial_reason
+        lines.append(f"| django-tolap | {description} | `{name}` | {reason} |")
+    for name, factory, description in SA_REFUSED:
+        reason = prepare_select(factory(), policy, dialect="sqlite").denial_reason
+        lines.append(f"| sqlalchemy-tolap | {description} | `{name}` | {reason} |")
+    session.close()
+    return "\n".join(lines) + "\n"
+
+
 def render() -> str:
     lines = [
         "# Gap report: upstream string rewriter vs ORM-native pushdown",
@@ -222,7 +245,7 @@ def render() -> str:
         "- `str(qs.query)` is not executable SQL: parameters are interpolated without quoting, so string filters and dates fail to run.",
         "",
     ]
-    return "\n".join(lines) + "\n" + render_sqlalchemy()
+    return "\n".join(lines) + "\n" + render_sqlalchemy() + "\n" + render_limits()
 
 
 def main() -> None:

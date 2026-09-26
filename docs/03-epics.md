@@ -256,3 +256,34 @@ projection; `.limit()`.
 **E6-S5.** AC: quickstart for FastAPI-style usage; gap table for `str(select.compile())`.
 
 **E6-S6.** AC: non-root columns (bare or labelled) and labelled root columns accepted; pre-checked against their own table's field rules; post pass sees `table.column`, caller key restored; duplicate or root-shadowing keys refused (`label it`); differential corpus and property statement added. Post-v0.1 backlog item, 2026-09-25.
+
+---
+
+## E7. Post-0.1 backlog and 0.2.x — status: reviewed
+
+Stories landed as direct commits on `main` after v0.1.1; each reviewed with `/code-review`
+low and fixed before the next. Released as 0.2.0 and 0.2.1 (2026-09-26).
+
+| Story | Title | Depends on | Status |
+| --- | --- | --- | --- |
+| E7-S1 | Raw SQL wrappers `enforce_sql` / `enforce_raw` | E1 | reviewed |
+| E7-S2 | `tolap_resolve` management command | E2 | reviewed |
+| E7-S3 | ORM write-path enforcement | E1 | reviewed |
+| E7-S4 | Joined `values()` projections (Django) | E1 | reviewed |
+| E7-S5 | drf-spectacular per-caller schemas (E3-S5) | E3 | reviewed |
+| E7-S6 | Joined and labelled projections (SQLAlchemy, E6-S6) | E6 | reviewed |
+| E7-S7 | Row filters resolved to one `object.field` key; fail-open closed | E7-S4, E7-S6 | reviewed |
+| E7-S8 | Joined filter column auto-projected instead of refused | E7-S7 | reviewed |
+| E7-S9 | Clinic example over DRF with per-caller schema | E7-S5 | done |
+| E7-S10 | Gap report "Documented limits" table, asserted | E4 | done |
+| E7-S11 | `make signals` adoption loop | — | done |
+| E7-S12 | tolap-core 1.1: purpose binding, delegation chains, judge | upstream 1.1 | blocked |
+
+**E7-S7.** AC: every model field presented to the post pass under a unique `object.field`
+key; every row filter resolved to exactly one column (root or joined, case-insensitively)
+and copied under its own spelling; a filter on an object absent from the query refused
+(decision 2026-09-25); property tests give encounters a region other than their patient's.
+**E7-S8.** AC: a filter on a joined object whose column is not projected adds the column
+through the projected column's relation or FROM element and strips it; refusal remains for
+absent objects, WHERE-only joins, unknown columns, `__` annotations, reserved labels.
+

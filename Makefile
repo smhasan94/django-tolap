@@ -1,4 +1,4 @@
-.PHONY: check lint type test fmt gap-report demo
+.PHONY: check lint type test fmt gap-report demo signals
 
 check: lint type test
 
@@ -24,3 +24,6 @@ demo:  ## seed the example app on SQLite and run the benchmark
 	cd examples/clinic && rm -f clinic.sqlite3 && PYTHONPATH=. uv run python manage.py migrate -v 0 \
 	  && PYTHONPATH=. uv run python manage.py seed_patients --rows $${ROWS:-100000} \
 	  && PYTHONPATH=. uv run python manage.py benchmark --user alice --markdown
+
+signals:  ## adoption signals: PyPI downloads, repo stats, the upstream issue, tolap-core version
+	scripts/signals.sh

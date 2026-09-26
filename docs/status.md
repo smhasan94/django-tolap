@@ -35,6 +35,13 @@ and approve the `pypi` environment on the run (`CONTRIBUTING.md` "Releasing").
   for the post pass. Gap report: 48 of 48 corpus pairs prepare.
 - `__version__` from package metadata.
 
+**Adoption signals.** `make signals` prints PyPI downloads, repo stats, the upstream issue's
+state and whether tolap-core has moved past 1.0.0. Baseline 2026-09-26, day one of 0.2.0:
+django-tolap 162 downloads (mostly CI and mirrors), sqlalchemy-tolap not yet in pypistats,
+0 stars, 0 issues; upstream tolap 8 stars, our #31 its only open issue, no maintainer reply.
+Check weekly. The next piece of work should come from a user report, a maintainer reply, or
+tolap-core 1.1, not from guessing.
+
 **Workflow.** Direct commits on `main` (owner's call after PRs #1 to #5). Branches and PRs
 return when the owner asks.
 

@@ -1,8 +1,8 @@
 # Status (saved 2026-09-26)
 
-**Where we are.** `django-tolap` 0.2.0 and `sqlalchemy-tolap` 0.2.0 on PyPI (2026-09-26,
-tags `django-tolap-v0.2.0` and `sqlalchemy-tolap-v0.2.0`, first real run of the release
-workflow: both jobs succeeded after the `pypi` environment approval). Repo public, private
+**Where we are.** 0.2.1 of both packages prepared on `main`, waiting for the owner's tags
+(`django-tolap-v0.2.1`, `sqlalchemy-tolap-v0.2.1`) and the `pypi` environment approval.
+PyPI carries 0.2.0 of both (released 2026-09-26). Repo public, private
 vulnerability reporting on, trusted publishing configured. Upstream issue posted:
 https://github.com/awslabs/tolap/issues/31, 0.2.0 update posted 2026-09-26, no maintainer
 reply yet. CI green on every leg (SQLite matrix, PostgreSQL, MySQL 8.4,
@@ -13,7 +13,7 @@ date the changelog heading, `uv lock`, commit, then
 `git tag -a <package>-vX.Y.Z -m "<package> X.Y.Z" && git push origin <package>-vX.Y.Z`
 and approve the `pypi` environment on the run (`CONTRIBUTING.md` "Releasing").
 
-**Unreleased on `main`.**
+**In 0.2.1 (2026-09-26).**
 - Both adapters: a row filter on a joined object whose column is not projected now adds
   that column for the post pass (through the projected column's relation or FROM element)
   instead of refusing; refusal remains for absent objects, WHERE-only joins and unknown

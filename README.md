@@ -67,7 +67,7 @@ ORDER BY 1 ASC LIMIT 500
 Without it: `SELECT ... FROM "patients" ORDER BY 1 ASC`, a million rows into Python, then
 TOLAP keeps 500. `ssn` is not in either statement.
 
-Status: **v0.2.0.** All six epics done (enforcement, store and admin, tool and DRF,
+Status: **v0.2.1.** All six epics done (enforcement, store and admin, tool and DRF,
 differential hardening, example and benchmark, SQLAlchemy adapter). See
 [`docs/03-epics.md`](docs/03-epics.md) and [`CHANGELOG.md`](CHANGELOG.md).
 

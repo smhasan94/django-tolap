@@ -309,3 +309,27 @@ upstream's matcher looks for it. Option 2 changes the result shape and upstream'
 _row_field_value does not recurse, so joined row filters would drop every row. Upstream's
 matcher lets a bare or wildcard rule match any object's leaf; that over-masks, never
 under-masks, and is upstream's documented reading.
+
+## 2026-09-25 — Row filters on an object the query does not touch
+
+**Question.** A policy row filter names an object that is not in the query (filter
+`encounters.region = us-east`, query `Patient.objects.values("id", "region")`). Upstream's
+post pass looks the field up by exact key, then by bare-name match over the row's keys, so
+it would evaluate the filter against the patient's own `region`; with no such column it
+would drop every row. Both adapters now resolve every filter to exactly one column of the
+result before the post pass; what should they do when none exists?
+
+**Options.**
+1. Refuse the query: `row filter field not in result: encounters.region`.
+2. Leave it to upstream (the pre-0.2.0 behaviour): the filter silently reads the root's
+   column of the same leaf name when there is one.
+3. Ignore filters on absent objects. Loosens enforcement.
+
+**Decision.** Option 1.
+
+**Rationale.** Fail closed is the constraint; option 2 is the wrong-object misread the
+0.2.0 fixes close, and option 3 loosens. The refusal is visible in the reason string, so a
+policy author sees the mismatch. Cost: a policy carrying filters on several objects works
+only for queries that project all of them; split such policies per object. Reversible in one
+line if real policies need it.
+

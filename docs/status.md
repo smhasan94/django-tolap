@@ -1,14 +1,23 @@
-# Status (saved 2026-09-25, end of day)
+# Status (saved 2026-09-25, late)
 
-**Where we are.** v0.1 complete and released; post-v0.1 backlog in progress. Both packages
-on PyPI: `django-tolap` 0.1.1 (tag `v0.1.1`), `sqlalchemy-tolap` 0.1.0 (tag `v0.1.0`).
-Repo public, private vulnerability reporting on, trusted publishing configured (PyPI
-publishers and the `pypi` GitHub environment exist). Upstream issue posted:
+**Where we are.** 0.2.0 of both packages is on `main`, versions bumped, changelog dated,
+waiting for the owner to tag (rule 5). PyPI still carries `django-tolap` 0.1.1 and
+`sqlalchemy-tolap` 0.1.0. Repo public, private vulnerability reporting on, trusted publishing
+configured (PyPI publishers and the `pypi` GitHub environment exist). Upstream issue posted:
 https://github.com/awslabs/tolap/issues/31, no maintainer reply yet. CI green on every leg
 (SQLite matrix, PostgreSQL, MySQL 8.4, quickstart, upstream-main) with a 90% line-and-branch
 coverage floor; all legs sit at 96%.
 
-**Unreleased on `main` (see `CHANGELOG.md` "Unreleased").**
+**To release 0.2.0 (owner).** On `main` at the bump commit:
+```
+git tag -a django-tolap-v0.2.0 -m "django-tolap 0.2.0" && git push origin django-tolap-v0.2.0
+git tag -a sqlalchemy-tolap-v0.2.0 -m "sqlalchemy-tolap 0.2.0" && git push origin sqlalchemy-tolap-v0.2.0
+```
+The release workflow does the rest (`CONTRIBUTING.md` "Releasing"). It has not run for real
+yet; watch its first run. Afterwards update "Where we are" here and post the update drafted
+below on awslabs/tolap#31.
+
+**In 0.2.0 (see `CHANGELOG.md`).**
 - sqlalchemy-tolap: joined and labelled column projections (`select(Patient.id,
   Encounter.occurred_at)`, `Encounter.region.label("er")`), keyed to their own table for the
   post pass. Ships as `sqlalchemy-tolap` 0.2.0 by the same bump-and-tag flow
@@ -24,19 +33,17 @@ coverage floor; all legs sit at 96%.
   for the post pass. Gap report: 48 of 48 corpus pairs prepare.
 - `__version__` from package metadata.
 
-Release it as `django-tolap` 0.2.0 when ready: bump `version` in
-`packages/django-tolap/pyproject.toml`, date the changelog heading, `uv lock`, commit, then
-`git tag -a django-tolap-v0.2.0 -m "django-tolap 0.2.0" && git push origin django-tolap-v0.2.0`.
-The release workflow does the rest (`CONTRIBUTING.md` "Releasing"). The workflow has not run
-for real yet; watch its first run.
-
-**Waits on the owner.** One decision from the joined-projection work, made fail-closed in
-code pending an answer: a policy row filter on an object that is not in the query at all
-(`encounters.region` on a patients-only query) is now refused as `row filter field not in
-result`. Before, upstream's post pass evaluated it against the root's column of the same
-leaf name (`region`) or, absent one, dropped every row. Alternatives: leave it to upstream
-(status quo, silently reads the wrong object), or ignore filters on absent objects (never:
-that loosens). Recommended: keep the refusal. Record in `docs/decisions.md` once answered.
+**Draft update for awslabs/tolap#31 (owner posts, after the tags).**
+> Update: `django-tolap` 0.2.0 and `sqlalchemy-tolap` 0.2.0 are on PyPI. New since 0.1:
+> joined-column projections in both adapters (`values("patient__email")`,
+> `select(Patient.id, Encounter.occurred_at)`), keyed to their own object for the post pass;
+> ORM write paths through `validate_write`; raw SQL wrappers over your `prepare_sql_query`;
+> drf-spectacular schemas per caller. One thing worth knowing on your side: with rows that
+> carry columns of two objects, `_row_field_value`'s bare-name fallback can read the wrong
+> object's column when leaf names coincide (`patients.region` vs `encounters.region`). The
+> adapters now key every column `object.field` and resolve each filter to exactly one of
+> them before calling the pipeline, so the fallback is never reached. Happy to open a
+> separate issue if a stricter lookup in core would help.
 
 **Workflow.** Direct commits on `main` (owner's call after PRs #1 to #5). Branches and PRs
 return when the owner asks.

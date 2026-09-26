@@ -18,6 +18,9 @@ and approve the `pypi` environment on the run (`CONTRIBUTING.md` "Releasing").
   that column for the post pass (through the projected column's relation or FROM element)
   instead of refusing; refusal remains for absent objects, WHERE-only joins and unknown
   columns.
+- Example app: the clinic policies over a DRF endpoint (`patients/api.py`) with a per-caller
+  schema, login users alice/bob from the seed, `manage.py test patients` smoke test run by
+  `make demo` (CI quickstart leg).
 
 **In 0.2.0 (see `CHANGELOG.md`).**
 - sqlalchemy-tolap: joined and labelled column projections (`select(Patient.id,

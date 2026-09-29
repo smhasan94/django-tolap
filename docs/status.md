@@ -2,12 +2,18 @@
 
 **Where we are.** `django-tolap` 0.2.1 and `sqlalchemy-tolap` 0.2.1 on PyPI (2026-09-26,
 tags `django-tolap-v0.2.1` and `sqlalchemy-tolap-v0.2.1`; release workflow green both times
-after the `pypi` environment approval). Nothing unreleased on `main`. Repo public, private
-vulnerability reporting on, trusted publishing configured. Upstream issue
+after the `pypi` environment approval). Unreleased on `main` since then: docs, tests and
+CI only (`CHANGELOG.md` "Unreleased"); no package code changed, so no release is due. Repo
+public, private vulnerability reporting on, trusted publishing configured. Upstream issue
 https://github.com/awslabs/tolap/issues/31 answered by a maintainer on 2026-09-29 (see
-"Upstream 1.2.0" below); a reply is drafted at the end of `docs/upstream-issue.md` and
-waits for the owner to post. CI green on every leg (SQLite matrix, PostgreSQL, MySQL 8.4,
-quickstart, upstream-main) with a 90% line-and-branch coverage floor; all legs sit at 96%.
+"Upstream 1.2.0" below); the owner replied there and on #34 the same day (text in
+`docs/upstream-issue.md`). CI green on every leg (SQLite matrix, PostgreSQL, MySQL 8.4,
+quickstart, upstream-main now genuinely on upstream `main`) with a 90% line-and-branch
+coverage floor; all legs sit at 96%.
+
+**Next session starts here.** Run `make signals`. If tolap-core on PyPI is past 1.0.0,
+start E7-S13 then E7-S14 (`docs/03-epics.md`). If a maintainer answered #34 that PyPI
+1.0.0 is not theirs, halt and decide with the owner. Otherwise there is nothing to do.
 
 **Upstream 1.2.0 (2026-09-29, tag only; PyPI still 1.0.0).** The maintainer's reply on
 #31 and the release notes, verified against the tag:

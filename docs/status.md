@@ -96,8 +96,8 @@ Desktop, `docker run -d --name tolap-mysql -e MYSQL_ROOT_PASSWORD=root -e MYSQL_
 Regenerate the gap report with `DATABASE_URL=<postgres> make gap-report`.
 
 **Backlog (in rough priority order).**
-- Owner: post the drafted reply on awslabs/tolap#31 (`docs/upstream-issue.md`, "Reply
-  draft"). The CI result it cites is in.
+- Reply posted on awslabs/tolap#31 by the owner on 2026-09-29. It commits to E7-S13 and
+  E7-S14 once 1.2.0 is on PyPI; watch #31 (hosting decision) and #34 (release channel).
 - When `tolap-core` 1.2 reaches PyPI (#34): return `EnforcedResult.for_context` from
   `@tolap_tool` and the DRF mixins when the caller runs `execute_with_enforcement`, retire
   the `pre_execute` composition note in the READMEs and `tests/test_tool_mcp_interop.py`,

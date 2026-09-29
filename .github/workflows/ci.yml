@@ -93,6 +93,10 @@ jobs:
     # to catch API drift before a release does. Allowed to fail; the summary names it.
     runs-on: ubuntu-latest
     continue-on-error: true
+    env:
+      # `uv run` re-syncs the venv from uv.lock by default, which silently put PyPI 1.0.0
+      # back after the git install below (found 2026-09-29). Keep the git checkout.
+      UV_NO_SYNC: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -104,5 +108,6 @@ jobs:
             "tolap-core @ git+https://github.com/awslabs/tolap#subdirectory=sdk/python/tolap-core" \
             "tolap-store @ git+https://github.com/awslabs/tolap#subdirectory=sdk/python/tolap-store" \
             "tolap-mcp @ git+https://github.com/awslabs/tolap#subdirectory=sdk/python/tolap-mcp"
-      - run: uv run python -c "import tolap_core, importlib.metadata as m; print('tolap-core', m.version('tolap-core'))"
+      - run: |
+          uv run python -c 'import importlib.metadata as m; v = m.version("tolap-core"); print("tolap-core", v); assert v != "1.0.0", "still on PyPI 1.0.0"'
       - run: make test

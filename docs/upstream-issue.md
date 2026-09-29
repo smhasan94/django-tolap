@@ -139,3 +139,15 @@ same differential harness, and report anything that disagrees.
 **Hosting.** No preference; whichever is less work for you. If it stays community-hosted, I
 will keep the README's install snippet and compatibility section pointing at the upstream release
 each adapter is tested against.
+
+## Comment on #34 (release channel), drafted 2026-09-29
+
+Following up now that 1.2.0 is tagged. From the downstream side, the thing we need first is
+your item 1: whether the 1.0.0 packages on PyPI are yours. `django-tolap` and
+`sqlalchemy-tolap` depend on `tolap-core` and `tolap-store` from PyPI, so if those are not
+official we need to know quickly and will stop depending on them.
+
+If they are official, publishing 1.2.0 of all three (`tolap-core`, `tolap-store`,
+`tolap-mcp`) to PyPI is what unblocks the `EnforcedResult` adoption and the fixture refresh
+from #31. PyPI does not allow a published package to depend on a git URL, so until then our
+users are on 1.0.0. Happy to run a release candidate through our CI if that helps.

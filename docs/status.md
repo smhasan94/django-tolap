@@ -32,9 +32,15 @@ quickstart, upstream-main) with a 90% line-and-branch coverage floor; all legs s
   `sql-multi-table.json`.
 - New `objectRules.toolRules` and `filter_tools`; schema stays v1.0, all optional.
 - Release channel (#34) still open.
-- Behaviour changes to check on the upstream-main CI leg: rows relying on the old lookup
-  are dropped; `*.name` allows only bare `name`; some raw SQL is now refused. Upstream main
-  is four commits past the tag (dependency bumps, README, examples only).
+- Behaviour changes checked on the upstream-main CI leg against main `6a4cc0d` (the tag
+  plus dependency bumps, README and examples): 1040 tests pass. The only difference from
+  1.0.0 is raw SQL: an `IN (SELECT ...)` subquery and a `UNION` are now refused by
+  upstream's pre-check; `tests/test_raw.py` branches on the installed version. The
+  qualified-lookup and `allowedFields` changes needed nothing.
+- Found while doing that: the upstream-main leg had never tested upstream. `uv run`
+  re-synced the venv from `uv.lock` after the git install and quietly restored 1.0.0.
+  Fixed with `UV_NO_SYNC` on the job plus an assertion that the version moved
+  (commit `41bf3c8`). Every earlier "upstream-main green" was really 1.0.0.
 
 **Releasing the next version (owner).** Bump `version` in the package's `pyproject.toml`,
 date the changelog heading, `uv lock`, commit, then
@@ -91,7 +97,7 @@ Regenerate the gap report with `DATABASE_URL=<postgres> make gap-report`.
 
 **Backlog (in rough priority order).**
 - Owner: post the drafted reply on awslabs/tolap#31 (`docs/upstream-issue.md`, "Reply
-  draft") once the upstream-main CI leg result is in.
+  draft"). The CI result it cites is in.
 - When `tolap-core` 1.2 reaches PyPI (#34): return `EnforcedResult.for_context` from
   `@tolap_tool` and the DRF mixins when the caller runs `execute_with_enforcement`, retire
   the `pre_execute` composition note in the READMEs and `tests/test_tool_mcp_interop.py`,

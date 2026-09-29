@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from importlib.metadata import version
 from typing import Any
 
 import pytest
@@ -19,6 +20,8 @@ from tests.harness.fixtures import effective_policy, us_east_filter
 from tests.harness.strategies import patient_rows, policies
 from tests.test_enforce import ANALYST
 from tests.testapp.models import Patient
+
+TOLAP_CORE = tuple(int(x) for x in version("tolap-core").split(".")[:2])
 
 pytestmark = pytest.mark.django_db
 
@@ -109,16 +112,7 @@ def test_post_only_mode_pushes_nothing_and_agrees(seeded: None) -> None:
 # --- what is never rewritten but still allowed --------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "sql",
-    [
-        "SELECT p.id FROM patients p JOIN encounters e ON e.patient_id = p.id",
-        "SELECT patients.id FROM patients, encounters",
-        "SELECT id FROM patients WHERE id IN (SELECT patient_id FROM encounters)",
-        "SELECT id FROM patients UNION SELECT id FROM patients",
-    ],
-)
-def test_multi_table_statements_are_checked_but_not_rewritten(seeded: None, sql: str) -> None:
+def _checked_not_rewritten(sql: str) -> None:
     p = policy(
         {"rowFilters": [{"field": "id", "operator": "in", "values": [1]}]}, limits={"maxResults": 1}
     )
@@ -127,6 +121,41 @@ def test_multi_table_statements_are_checked_but_not_rewritten(seeded: None, sql:
     assert len(r.unpushable_filters) == 1
     rows = enforce_sql(sql, None, signed(p), model=Patient)
     assert [row["id"] for row in rows] == [1]  # the post pass still filters and limits
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT p.id FROM patients p JOIN encounters e ON e.patient_id = p.id",
+        "SELECT patients.id FROM patients, encounters",
+    ],
+)
+def test_joined_statements_are_checked_but_not_rewritten(seeded: None, sql: str) -> None:
+    _checked_not_rewritten(sql)
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT id FROM patients WHERE id IN (SELECT patient_id FROM encounters)",
+        "SELECT id FROM patients UNION SELECT id FROM patients",
+    ],
+)
+def test_unresolvable_statements_follow_upstream(seeded: None, sql: str) -> None:
+    """Upstream 1.2.0 (#39) refuses subqueries outside FROM and set operations in its SQL
+    pre-check instead of passing them through; 1.0.0 allows them unrewritten. Both are
+    fail-closed for us: the post pass still filters in 1.0.0, and 1.2.0 never executes."""
+    if TOLAP_CORE < (1, 2):
+        _checked_not_rewritten(sql)
+        return
+    p = policy({"rowFilters": [{"field": "id", "operator": "in", "values": [1]}]})
+    r = prep(sql, p)
+    assert not r.allowed and r.sql is None
+    assert (r.denial_reason or "").startswith(
+        "query uses a construct the pre-execution check cannot resolve"
+    )
+    with pytest.raises(TolapDenied, match="cannot resolve"):
+        enforce_sql(sql, None, signed(p), model=Patient)
 
 
 def test_unknown_vendor_pushes_nothing() -> None:

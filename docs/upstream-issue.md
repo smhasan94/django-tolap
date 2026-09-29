@@ -112,7 +112,14 @@ against the tag and the linked issues:
 Thanks for the fast turnaround, and for the README listing.
 
 **Behaviour changes.** Our upstream-`main` CI leg ran against main at `6a4cc0d` (1.2.0
-plus the README and examples commits): UPSTREAM_MAIN_RESULT. The adapters already key
+plus the README and examples commits) and passes. The qualified row-filter lookup and the
+`allowedFields` change needed no code changes. The one difference we saw is the raw SQL
+pre-check: an `IN (SELECT ...)` subquery and a `UNION` that 1.0.0 checked and post-passed
+unrewritten are now refused as constructs it cannot resolve, which is the fail-closed
+direction and matches `sql-multi-table.json`; our raw SQL tests and README now describe both
+versions. One embarrassing note on our side: that CI leg had been silently re-syncing to
+PyPI 1.0.0 after the git install, so today was its first genuine run against your `main`.
+Fixed. The adapters already key
 every column `object.field` and resolve each filter to exactly one column before the post
 pass, so the new qualified lookup is the path they were written for.
 

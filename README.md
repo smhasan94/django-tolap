@@ -215,9 +215,11 @@ rows = enforce_sql("SELECT id, full_name FROM patients WHERE status = %s", ["act
 Upstream's string rewriter does the text edits; `django-tolap` decides what it may push, with
 the same vendor rules as the QuerySet path, and always runs the post pass. `model` names the
 table the statement reads and supplies the column types the rules need. Only single-table
-`SELECT`s are rewritten: joins, comma `FROM` lists, subqueries and set operations still get
-every check and the post pass, but nothing is pushed, because upstream injects unqualified
-column names. `%s` and `%(name)s` placeholders are preserved; a pushed `LIKE 'J%'` is escaped
+`SELECT`s are rewritten: joins and comma `FROM` lists still get every check and the post
+pass, but nothing is pushed, because upstream injects unqualified column names. Subqueries
+outside `FROM`, set operations, CTEs and `LATERAL` follow the installed `tolap-core`: 1.0.0
+checks and post-passes them unrewritten, 1.2.0 and later refuse them in the pre-check as
+constructs it cannot resolve. `%s` and `%(name)s` placeholders are preserved; a pushed `LIKE 'J%'` is escaped
 so Django's parameter interpolation leaves it alone. Rows come back as dicts, never model
 instances.
 

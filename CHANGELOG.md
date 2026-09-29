@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### django-tolap
+
+- `enforce_sql` / `enforce_raw` with upstream `tolap-core` 1.2.0: subqueries outside
+  `FROM`, set operations, CTEs and `LATERAL` are refused by upstream's rewritten SQL
+  pre-check (`query uses a construct the pre-execution check cannot resolve`) instead of
+  being checked and post-passed unrewritten as with 1.0.0. Joins and comma `FROM` lists are
+  unchanged. Tested on both versions.
+
+### repository
+
+- The upstream-`main` CI leg had been testing PyPI 1.0.0: `uv run` re-synced the venv from
+  `uv.lock` after the git install. Fixed with `UV_NO_SYNC`; the leg now asserts the
+  installed version moved, and passes against upstream 1.2.0.
+
 ## 0.2.1 — 2026-09-26
 
 ### both

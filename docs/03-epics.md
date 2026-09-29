@@ -277,12 +277,25 @@ low and fixed before the next. Released as 0.2.0 and 0.2.1 (2026-09-26).
 | E7-S9 | Clinic example over DRF with per-caller schema | E7-S5 | done |
 | E7-S10 | Gap report "Documented limits" table, asserted | E4 | done |
 | E7-S11 | `make signals` adoption loop | — | done |
-| E7-S12 | tolap-core 1.1: purpose binding, delegation chains, judge | upstream 1.1 | blocked |
+| E7-S12 | tolap-core 1.1: purpose binding, delegation chains, judge | upstream on PyPI | blocked |
+| E7-S13 | Return `EnforcedResult` from `@tolap_tool` and DRF mixins (upstream 1.2.0, #33) | upstream on PyPI | blocked |
+| E7-S14 | Refresh upstream fixtures to 1.2.0; run the four new enforcement fixtures through both adapters | upstream on PyPI | blocked |
 
 **E7-S7.** AC: every model field presented to the post pass under a unique `object.field`
 key; every row filter resolved to exactly one column (root or joined, case-insensitively)
 and copied under its own spelling; a filter on an object absent from the query refused
 (decision 2026-09-25); property tests give encounters a region other than their patient's.
+**E7-S13.** AC: when a tool wrapped by upstream `execute_with_enforcement` returns through
+`@tolap_tool` or the DRF mixins, the data is wrapped with `EnforcedResult.for_context` only
+after `apply_result_pipeline` ran; `tests/test_tool_mcp_interop.py` asserts hashed fields
+come back hashed once; README composition note updated; pin raised to the release that
+ships it.
+**E7-S14.** AC: `tests/fixtures/upstream/SOURCE` names the 1.2.0 commit;
+`already-enforced-results.json`, `row-filter-qualified-lookup.json`,
+`allowed-fields-qualified.json` and `sql-multi-table.json` run in the differential harness
+or are listed as not applicable with a reason; the three 1.2.0 behaviour changes (dropped
+rows on ambiguous lookup, `*.name` only bare `name`, stricter raw SQL pre-check) each have a
+test.
 **E7-S8.** AC: a filter on a joined object whose column is not projected adds the column
 through the projected column's relation or FROM element and strips it; refusal remains for
 absent objects, WHERE-only joins, unknown columns, `__` annotations, reserved labels.

@@ -85,3 +85,49 @@ in 18 ms with pushdown versus 1,000,000 rows in 6.3 s and about 1.2 GB peak memo
 Would you mention the adapters alongside the integration examples, or prefer to host them (I would
 transfer or contribute them under Apache-2.0 either way)? Happy to align naming, structure or
 test conventions with whatever you prefer.
+
+---
+
+## Maintainer reply (2026-09-29)
+
+phspies answered on #31 the day TOLAP 1.2.0 was tagged. Summary, each point verified
+against the tag and the linked issues:
+
+- Adapters listed in the README under "Community integrations" (#35, #41). Hosting under
+  `awslabs` undecided; they will follow up on #31.
+- Point 1 (double hash): `EnforcedResult.for_context(data, context)` (#33, #40).
+  `execute_with_enforcement` skips the result pipeline for it; honoured only under
+  signature enforcement with a marker naming the context's exact signature. Skips masking
+  and the size ceiling; row filters, hidden/allowed projection, `maxResults` and tag rules
+  still run. A claim, not proof: only after `apply_result_pipeline` ran.
+- Bare-name fallback (our 0.2.0 comment): filed #32, fixed #37. `allowedFields` had the same
+  cross-object hole: #36, #38. SQL pre-check now resolves every reference (#39),
+  `validate_query_references` exported, unresolvable constructs refused.
+- Point 2 (release channel): #34, still open. PyPI still 1.0.0.
+- Asked us to check three behaviour changes on our upstream-main leg: dropped rows on
+  ambiguous or conflicting lookups, `*.name` allowing only bare `name`, stricter raw SQL.
+
+## Reply draft (owner posts; do not post from the tool)
+
+Thanks for the fast turnaround, and for the README listing.
+
+**Behaviour changes.** Our upstream-`main` CI leg ran against main at `6a4cc0d` (1.2.0
+plus the README and examples commits): UPSTREAM_MAIN_RESULT. The adapters already key
+every column `object.field` and resolve each filter to exactly one column before the post
+pass, so the new qualified lookup is the path they were written for.
+
+**`EnforcedResult`.** This is exactly the shape I hoped for. Plan on our side, once 1.2.0
+is installable from PyPI: `@tolap_tool` and the DRF mixins return
+`EnforcedResult.for_context` only after `apply_result_pipeline` has run (never on pushdown
+alone), the double-hash test flips to asserting a single hash, and the "use `pre_execute`
+for the call" note in our README goes away. Until #34 resolves we stay pinned to
+`tolap-core>=1.0,<2`, which today means 1.0.0, so the adapters keep the old composition.
+
+**Fixtures.** We will refresh our verbatim copy of `fixtures/` to the 1.2.0 commit and run
+`already-enforced-results.json`, `row-filter-qualified-lookup.json`,
+`allowed-fields-qualified.json` and `sql-multi-table.json` through both adapters in the same
+differential harness, and report anything that disagrees.
+
+**Hosting.** No preference; whichever is less work for you. If it stays community-hosted, I
+will keep the README's install snippet and the version table pointing at the upstream
+release each adapter is tested against.

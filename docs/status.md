@@ -1,12 +1,40 @@
-# Status (saved 2026-09-26)
+# Status (saved 2026-09-29)
 
 **Where we are.** `django-tolap` 0.2.1 and `sqlalchemy-tolap` 0.2.1 on PyPI (2026-09-26,
 tags `django-tolap-v0.2.1` and `sqlalchemy-tolap-v0.2.1`; release workflow green both times
 after the `pypi` environment approval). Nothing unreleased on `main`. Repo public, private
-vulnerability reporting on, trusted publishing configured. Upstream issue posted:
-https://github.com/awslabs/tolap/issues/31, 0.2.0 update posted 2026-09-26, no maintainer
-reply yet. CI green on every leg (SQLite matrix, PostgreSQL, MySQL 8.4,
+vulnerability reporting on, trusted publishing configured. Upstream issue
+https://github.com/awslabs/tolap/issues/31 answered by a maintainer on 2026-09-29 (see
+"Upstream 1.2.0" below); a reply is drafted at the end of `docs/upstream-issue.md` and
+waits for the owner to post. CI green on every leg (SQLite matrix, PostgreSQL, MySQL 8.4,
 quickstart, upstream-main) with a 90% line-and-branch coverage floor; all legs sit at 96%.
+
+**Upstream 1.2.0 (2026-09-29, tag only; PyPI still 1.0.0).** The maintainer's reply on
+#31 and the release notes, verified against the tag:
+- Both adapters are listed in upstream's README under "Community integrations" (#35, #41).
+  Hosting under `awslabs` is undecided; they will follow up on #31.
+- `EnforcedResult.for_context(data, context)` (#33, #40): a tool returns it and
+  `execute_with_enforcement` skips the result pipeline, which closes the double-hash
+  interop. Honoured only under signature enforcement when the marker names the context's
+  exact signature; otherwise unwrapped and fully enforced. An honoured marker skips masking
+  and the size ceiling; row filters, hidden-field removal, allowed-field projection,
+  `maxResults` and tag rules still run. It is a claim, not proof: return one only after
+  `apply_result_pipeline` ran (pushdown alone does not qualify). Fixture
+  `fixtures/enforcement/already-enforced-results.json`.
+- Row-filter lookup fixed (#32, #37): a filter never reads a key qualified with another
+  object; a bare filter matching several qualified keys counts as absent and drops the row.
+  Same lookup for the update/delete target-row check. Fixture `row-filter-qualified-lookup.json`.
+- `allowedFields` no longer crosses objects (#36, #38): `patients.name` no longer admits
+  `encounters.name`. Fixture `allowed-fields-qualified.json`.
+- SQL pre-check (#39) resolves every table and column through aliases and refuses what it
+  cannot resolve (CTEs, set operations, subqueries outside FROM, LATERAL, non-SELECT);
+  exported as `validate_query_references`. Affects `enforce_sql` / `enforce_raw`. Fixture
+  `sql-multi-table.json`.
+- New `objectRules.toolRules` and `filter_tools`; schema stays v1.0, all optional.
+- Release channel (#34) still open.
+- Behaviour changes to check on the upstream-main CI leg: rows relying on the old lookup
+  are dropped; `*.name` allows only bare `name`; some raw SQL is now refused. Upstream main
+  is four commits past the tag (dependency bumps, README, examples only).
 
 **Releasing the next version (owner).** Bump `version` in the package's `pyproject.toml`,
 date the changelog heading, `uv lock`, commit, then
@@ -62,9 +90,15 @@ Desktop, `docker run -d --name tolap-mysql -e MYSQL_ROOT_PASSWORD=root -e MYSQL_
 Regenerate the gap report with `DATABASE_URL=<postgres> make gap-report`.
 
 **Backlog (in rough priority order).**
-- Purpose binding, delegation chains, judge: when `tolap-core` 1.1 reaches PyPI. Four merge
-  scenario fixtures are skipped until then; the upstream-`main` CI leg reports drift.
-- Reply on awslabs/tolap#31 when a maintainer answers.
+- Owner: post the drafted reply on awslabs/tolap#31 (`docs/upstream-issue.md`, "Reply
+  draft") once the upstream-main CI leg result is in.
+- When `tolap-core` 1.2 reaches PyPI (#34): return `EnforcedResult.for_context` from
+  `@tolap_tool` and the DRF mixins when the caller runs `execute_with_enforcement`, retire
+  the `pre_execute` composition note in the READMEs and `tests/test_tool_mcp_interop.py`,
+  raise the pin, refresh `tests/fixtures/upstream` to the 1.2.0 commit and run the four new
+  enforcement fixtures through both adapters (E7-S13, E7-S14).
+- Purpose binding, delegation chains, judge: same trigger. Four merge scenario fixtures are
+  skipped until then; the upstream-`main` CI leg reports drift.
 
 **Things to remember.**
 - Never run scripts against the configured `DATABASE_URL` directly; use Django's test
@@ -73,8 +107,9 @@ Regenerate the gap report with `DATABASE_URL=<postgres> make gap-report`.
 - Upstream fixtures are pinned to commit `e5c92107…` (`tests/fixtures/upstream/SOURCE`).
 - Upstream's field matcher lets a bare or table-wildcard rule (`encounters.*`) match any
   object's leaf key, by design; over-masks, never under-masks.
-- Upstream's row-filter lookup (`_row_field_value`) hits the exact key first, then the first
-  key in row order whose bare form matches. With joined columns in the row (`patients.email`
+- Upstream's row-filter lookup (`_row_field_value`) in PyPI 1.0.0 hits the exact key first,
+  then the first key in row order whose bare form matches (fixed upstream in 1.2.0, #37;
+  the notes below still hold and are the pattern the fix assumes). With joined columns in the row (`patients.email`
   keys) a qualified or differently-cased root filter could read the wrong object's column.
   Both adapters now present every model field to the post pass under a unique
   `object.field` key (`Preparation.key_map`), refuse a table that appears twice in FROM

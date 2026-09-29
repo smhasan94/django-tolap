@@ -97,7 +97,11 @@ Regenerate the gap report with `DATABASE_URL=<postgres> make gap-report`.
 
 **Backlog (in rough priority order).**
 - Reply posted on awslabs/tolap#31 by the owner on 2026-09-29. It commits to E7-S13 and
-  E7-S14 once 1.2.0 is on PyPI; watch #31 (hosting decision) and #34 (release channel).
+  E7-S14 once 1.2.0 is on PyPI; watch #31 for the hosting decision.
+- Comment posted on awslabs/tolap#34 by the owner on 2026-09-29 asking whether the PyPI
+  1.0.0 packages are theirs and for a 1.2.0 PyPI release. If they answer that PyPI 1.0.0
+  is not official, our dependency on it becomes the top item: halt and decide with the
+  owner. Nothing else is actionable until PyPI moves (`make signals` reports it).
 - When `tolap-core` 1.2 reaches PyPI (#34): return `EnforcedResult.for_context` from
   `@tolap_tool` and the DRF mixins when the caller runs `execute_with_enforcement`, retire
   the `pre_execute` composition note in the READMEs and `tests/test_tool_mcp_interop.py`,

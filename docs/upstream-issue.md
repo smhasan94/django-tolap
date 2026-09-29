@@ -137,5 +137,5 @@ adapters keep the current composition.
 same differential harness, and report anything that disagrees.
 
 **Hosting.** No preference; whichever is less work for you. If it stays community-hosted, I
-will keep the README's install snippet and version table pointing at the upstream release
+will keep the README's install snippet and compatibility section pointing at the upstream release
 each adapter is tested against.

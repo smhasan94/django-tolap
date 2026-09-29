@@ -113,28 +113,29 @@ Thanks for the fast turnaround, and for the README listing.
 
 **Behaviour changes.** Our upstream-`main` CI leg ran against main at `6a4cc0d` (1.2.0
 plus the README and examples commits) and passes. The qualified row-filter lookup and the
-`allowedFields` change needed no code changes. The one difference we saw is the raw SQL
-pre-check: an `IN (SELECT ...)` subquery and a `UNION` that 1.0.0 checked and post-passed
-unrewritten are now refused as constructs it cannot resolve, which is the fail-closed
-direction and matches `sql-multi-table.json`; our raw SQL tests and README now describe both
-versions. One embarrassing note on our side: that CI leg had been silently re-syncing to
-PyPI 1.0.0 after the git install, so today was its first genuine run against your `main`.
-Fixed. The adapters already key
-every column `object.field` and resolve each filter to exactly one column before the post
-pass, so the new qualified lookup is the path they were written for.
+`allowedFields` change needed no code changes: the adapters already key every column
+`object.field` and resolve each filter to exactly one column before the post pass, so the
+new lookup is the path they were written for. The one difference we saw is the raw SQL
+pre-check. An `IN (SELECT ...)` subquery and a `UNION` that 1.0.0 checked and post-passed
+unrewritten are now refused as constructs it cannot resolve. That is the fail-closed
+direction and matches `sql-multi-table.json`; our raw SQL tests and README now describe
+both versions.
 
-**`EnforcedResult`.** This is exactly the shape I hoped for. Plan on our side, once 1.2.0
-is installable from PyPI: `@tolap_tool` and the DRF mixins return
-`EnforcedResult.for_context` only after `apply_result_pipeline` has run (never on pushdown
-alone), the double-hash test flips to asserting a single hash, and the "use `pre_execute`
-for the call" note in our README goes away. Until #34 resolves we stay pinned to
-`tolap-core>=1.0,<2`, which today means 1.0.0, so the adapters keep the old composition.
+One note on our side: that CI leg had been silently re-syncing to PyPI 1.0.0 after the git
+install, so today was its first genuine run against your `main`. Fixed.
 
-**Fixtures.** We will refresh our verbatim copy of `fixtures/` to the 1.2.0 commit and run
+**`EnforcedResult`.** This is exactly the shape I hoped for. Once 1.2.0 is installable from
+PyPI, `@tolap_tool` and the DRF mixins will return `EnforcedResult.for_context` only after
+`apply_result_pipeline` has run (never on pushdown alone), the double-hash test will assert
+a single hash, and the "use `pre_execute` for the call" note in our README goes away. Until
+#34 resolves we stay pinned to `tolap-core>=1.0,<2`, which today means 1.0.0, so the
+adapters keep the current composition.
+
+**Fixtures.** We will refresh our verbatim copy of `fixtures/` to the 1.2.0 commit, run
 `already-enforced-results.json`, `row-filter-qualified-lookup.json`,
-`allowed-fields-qualified.json` and `sql-multi-table.json` through both adapters in the same
-differential harness, and report anything that disagrees.
+`allowed-fields-qualified.json` and `sql-multi-table.json` through both adapters in the
+same differential harness, and report anything that disagrees.
 
 **Hosting.** No preference; whichever is less work for you. If it stays community-hosted, I
-will keep the README's install snippet and the version table pointing at the upstream
-release each adapter is tested against.
+will keep the README's install snippet and version table pointing at the upstream release
+each adapter is tested against.
